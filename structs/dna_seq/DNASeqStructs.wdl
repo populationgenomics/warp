@@ -1,5 +1,12 @@
 version 1.0
 
+struct SampleAndBam {
+  String base_file_name
+  String? final_gvcf_base_name
+  File mapped_bam
+  String sample_name
+}
+
 struct SampleAndUnmappedBams {
   String base_file_name
   String? final_gvcf_base_name
