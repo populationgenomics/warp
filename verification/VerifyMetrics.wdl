@@ -14,10 +14,9 @@ workflow VerifyMetrics {
       comparison_type_msg = "Number of Metric Files"
   }
 
-  scatter (idx in range(length(truth_metrics))) {
+  scatter (idx in range(CompareNumberOfMetricFiles.minimum_num)) {
     call CompareMetricFiles {
       input:
-        dependency_input = CompareNumberOfMetricFiles.error_report_file,
         file1 = test_metrics[idx],
         file2 = truth_metrics[idx],
         output_file = "metric_~{idx}.txt",
@@ -92,14 +91,15 @@ task CompareTwoNumbers {
     echo "Results of Comparison of ~{comparison_type_msg}"
     if [ ~{test_num} -ne ~{truth_num} ]; then
       echo -e "Fail\t~{comparison_type_msg} differ ~{test_num} (Test) vs. ~{truth_num} (Truth)."
-      ret_val=1
-      echo 1>return_code.txt
+      echo $((~{test_num}<~{truth_num} ? ~{test_num} : ~{truth_num})) > mininum_num.txt
+      exit_code=1
     else
-      ret_val=0
       echo "Pass"
+      echo ~{test_num} > minimum_num.txt
+      exit_code=0
     fi
-    echo $ret_val>return_code.txt
-    exit 0
+    echo $exit_code>return_code.txt
+    exit $exit_code
   }
 
   runtime {
@@ -110,13 +110,13 @@ task CompareTwoNumbers {
   }
   output {
     Int exit_code = read_int("return_code.txt")
+    Int minimum_num = read_int("minimum_num.txt")
     File error_report_file = stdout()
   }
 }
 
 task CompareMetricFiles {
   input {
-    File? dependency_input
     File file1
     File file2
     String output_file
