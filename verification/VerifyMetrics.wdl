@@ -9,15 +9,15 @@ workflow VerifyMetrics {
 
   call CompareTwoNumbers as CompareNumberOfMetricFiles {
     input:
-      num1 = length(test_metrics),
-      num2 = length(truth_metrics),
-      error_msg = "Different number of metric files"
+      test_num = length(test_metrics),
+      truth_num = length(truth_metrics),
+      comparison_type_msg = "Number of Metric Files"
   }
 
   scatter (idx in range(length(truth_metrics))) {
     call CompareMetricFiles {
       input:
-        dependency_input = CompareNumberOfMetricFiles.output_file,
+        dependency_input = CompareNumberOfMetricFiles.error_report_file,
         file1 = test_metrics[idx],
         file2 = truth_metrics[idx],
         output_file = "metric_~{idx}.txt",
@@ -25,7 +25,17 @@ workflow VerifyMetrics {
     }
   }
 
+  call SummarizeResults {
+    input:
+      compare_two_numbers_exit_code = CompareNumberOfMetricFiles.exit_code,
+      compare_two_humbers_results_file = CompareNumberOfMetricFiles.error_report_file,
+      metric_exit_codes = CompareMetricFiles.exit_code,
+      metric_report_files = CompareMetricFiles.report_file
+  }
+
   output {
+    File report_file = SummarizeResults.error_report_file
+    Array[Int] metric_comparison_exit_codes = CompareMetricFiles.exit_code
     Array[File] metric_comparison_report_files = CompareMetricFiles.report_file
   }
   meta {
@@ -33,19 +43,63 @@ workflow VerifyMetrics {
   }
 }
 
+task SummarizeResults {
+  input {
+    Int compare_two_numbers_exit_code
+    File compare_two_humbers_results_file
+    Array[Int] metric_exit_codes
+    Array[File] metric_report_files
+  }
+
+  command <<<
+    cat ~{compare_two_humbers_results_file}
+    exit_code=~{compare_two_numbers_exit_code}
+    if [ "$exit_code" -ne "0" ]; then
+      exit $exit_code
+    fi
+
+    mapfile -t files < ~{write_lines(metric_report_files)}
+    mapfile -t exit_codes < ~{write_lines(metric_exit_codes)}
+
+    for ((i=0;i<${#files[@]};++i)); do
+      echo "------------"
+      cat ${files[$i]}
+      if [ "${exit_codes[$i]}" -ne "0" ]; then
+        exit_code=${exit_codes[$i]}
+      fi
+    done
+    exit $exit_code
+  >>>
+  runtime {
+    docker: "gcr.io/gcp-runtimes/ubuntu_16_0_4:latest"
+    disks: "local-disk 50 HDD"
+    memory: "2 GiB"
+    preemptible: 3
+  }
+  output {
+    File error_report_file = stdout()
+  }
+}
+
 task CompareTwoNumbers {
   input {
-    Int num1
-    Int num2
-    String? error_msg = "Numbers differ"
+    Int test_num
+    Int truth_num
+    String? comparison_type_msg = "Two Numbers"
   }
 
   command {
-    echo "Numbers agree" > output_file.txt
-    if [ ~{num1} -ne ~{num2} ]; then
-        echo "Error: ~{error_msg} (~{num1} vs. ~{num2})." > output_file.txt
-        exit 1
+    echo "Results of Comparison of ~{comparison_type_msg}"
+    if [ ~{test_num} -ne ~{truth_num} ]; then
+      echo -e "Fail\t~{comparison_type_msg} differ ~{test_num} (Test) vs. ~{truth_num} (Truth)."
+      ret_val=1
+      echo 1>return_code.txt
+    else
+      ret_val=0
+      echo "Pass"
     fi
+    echo $ret_val>return_code.txt
+    exit 0
   }
 
   runtime {
@@ -55,7 +109,8 @@ task CompareTwoNumbers {
     preemptible: 3
   }
   output {
-    File output_file = "output_file.txt"
+    Int exit_code = read_int("return_code.txt")
+    File error_report_file = stdout()
   }
 }
 
@@ -75,6 +130,8 @@ task CompareMetricFiles {
       --INPUT ~{file2} \
       --OUTPUT ~{output_file} \
       ~{true="--METRICS_TO_IGNORE" false="" length(metrics_to_ignore) > 0} ~{default="" sep=" --METRICS_TO_IGNORE " metrics_to_ignore}
+    echo $?>return_code.txt
+    exit 0
   >>>
 
   runtime {
@@ -84,6 +141,7 @@ task CompareMetricFiles {
     preemptible: 3
   }
   output {
+    Int exit_code = read_int("return_code.txt")
     File report_file = output_file
   }
 }

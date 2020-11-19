@@ -45,7 +45,7 @@ workflow VerifyArrays {
     input:
       num1 = length(test_metrics),
       num2 = length(truth_metrics),
-      error_msg = "Different number of metric files"
+      comparison_type_msg = "Different number of metric files"
   }
 
   String avcdm_ext = "arrays_variant_calling_detail_metrics"
