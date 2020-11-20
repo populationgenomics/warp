@@ -30,14 +30,14 @@ workflow VerifyMetrics {
   call SummarizeResults {
     input:
       compare_two_numbers_exit_code = CompareNumberOfMetricFiles.exit_code,
-      compare_two_humbers_results_file = CompareNumberOfMetricFiles.error_report_file,
+      compare_two_humbers_results_file = CompareNumberOfMetricFiles.report_file,
       metric_exit_codes = CompareMetricFiles.exit_code,
       metric_report_files = CompareMetricFiles.report_file,
       fail_fast = fail_fast
   }
 
   output {
-    File report_file = SummarizeResults.error_report_file
+    File report_file = SummarizeResults.report_file
     Array[Int] metric_comparison_exit_codes = CompareMetricFiles.exit_code
     Array[File] metric_comparison_report_files = CompareMetricFiles.report_file
   }
@@ -85,7 +85,7 @@ task SummarizeResults {
   }
   output {
     Int exit_code = read_int("return_code.txt")
-    File error_report_file = stdout()
+    File report_file = stdout()
   }
 }
 
@@ -123,7 +123,7 @@ task CompareTwoNumbers {
   output {
     Int exit_code = read_int("return_code.txt")
     Int minimum_num = read_int("minimum_num.txt")
-    File error_report_file = stdout()
+    File report_file = stdout()
   }
 }
 
