@@ -97,21 +97,40 @@ task CompareCrams {
     File test_crai
     File truth_cram
     File truth_crai
+    Boolean fail_fast = true
   }
 
   command {
+    fail_fast_value=~{true="true" false="" fail_fast}
+
+    echo "Results of CompareCrams:"
+    echo -e "Test:\t~{test_cram}"
+    echo -e "Truth:\t~{truth_cram}"
+
     # get the offset of the first alignment
     test_offset="$(zcat ~{test_crai} | cut -f4 | head -n 1)"
     truth_offset="$(zcat ~{truth_crai} | cut -f4 | head -n 1)"
 
     # compare files with byte offset
-    cmp -i "$test_offset:$truth_offset" ~{test_cram} ~{truth_cram}
+    cmp -i "$test_offset:$truth_offset" ~{test_cram} ~{truth_cram} > cmp_out.txt
+    exit_code=$?
+    if [ "$exit_code" -eq "0" ]; then
+      echo -e "Pass\tCRAMs do not differ"
+    else
+      echo -e "Fail\tCRAMs differ\t`cat cmp_out.txt`"
+    fi
+    echo $exit_code>return_code.txt
+    if [[ -n $fail_fast_value ]]; then exit $exit_code; else exit 0; fi
   }
   runtime {
     docker: "gcr.io/gcp-runtimes/ubuntu_16_0_4:latest"
     disks: "local-disk 150 HDD"
     memory: "2 GiB"
     preemptible: 3
+  }
+  output {
+    Int exit_code = read_int("return_code.txt")
+    File report_file = stdout()
   }
 }
 
@@ -120,17 +139,36 @@ task CompareCrais {
   input {
     File test_crai
     File truth_crai
+    Boolean fail_fast = true
   }
 
   command {
+    fail_fast_value=~{true="true" false="" fail_fast}
+
+    echo "Results of CompareCrais:"
+    echo -e "Test:\t~{test_crai}"
+    echo -e "Truth:\t~{truth_crai}"
+
     # compare columns 1,2,3,5, and 6. Cannot compare column 4
     # because it is a byte offset number that may differ.
-    cmp <(zcat ~{test_crai} | cut -f1,2,3,5,6) <(zcat ~{truth_crai} | cut -f1,2,3,5,6)
+    cmp <(zcat ~{test_crai} | cut -f1,2,3,5,6) <(zcat ~{truth_crai} | cut -f1,2,3,5,6) > cmp_out.txt
+    exit_code=$?
+    if [ "$exit_code" -eq "0" ]; then
+      echo -e "Pass\tCRAIs do not differ"
+    else
+      echo -e "Fail\tCRAMs differ\t`cat cmp_out.txt`"
+    fi
+    echo $exit_code>return_code.txt
+    if [[ -n $fail_fast_value ]]; then exit $exit_code; else exit 0; fi
   }
   runtime {
     docker: "gcr.io/gcp-runtimes/ubuntu_16_0_4:latest"
     disks: "local-disk 10 HDD"
     memory: "2 GiB"
     preemptible: 3
+  }
+  output {
+    Int exit_code = read_int("return_code.txt")
+    File report_file = stdout()
   }
 }

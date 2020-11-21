@@ -37,8 +37,8 @@ workflow VerifyMetrics {
   }
 
   output {
+    Int exit_code = SummarizeResults.exit_code
     File report_file = SummarizeResults.report_file
-    Array[Int] metric_comparison_exit_codes = CompareMetricFiles.exit_code
     Array[File] metric_comparison_report_files = CompareMetricFiles.report_file
   }
   meta {
@@ -57,6 +57,8 @@ task SummarizeResults {
 
   command <<<
     fail_fast_value=~{true="true" false="" fail_fast}
+
+    echo "Results of VerifyMetrics Workflow:"
 
     cat ~{compare_two_humbers_results_file}
     exit_code=~{compare_two_numbers_exit_code}
