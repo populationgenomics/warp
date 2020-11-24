@@ -30,6 +30,35 @@ workflow BamToFastq {
   }
 }
 
+task SubsetBam {
+  input {
+    File bam
+    String output_base_name
+  }
+
+  Int disk_size = ceil(size(bam, "GiB")) + 10
+
+  command {
+    samtools index ~{bam}
+    samtools view ~{bam} 21 -Obam -o ~{output_base_name}.bam
+    samtools index ~{output_base_name}.bam
+    mv ~{output_base_name}.bam.bai ~{output_base_name}.bai
+  }
+
+  output {
+    File output_bam = "~{output_base_name}.bam"
+    File output_bam_index = "~{output_base_name}.bai"
+  }
+
+  runtime {
+    docker: "biocontainers/samtools:1.3.1"
+    memory: "4 GiB"
+    disks: "local-disk ~{disk_size} HDD"
+    preemptible: 3
+    cpu: 1
+  }
+}
+
 task RevertSam {
   input {
     File input_bam
