@@ -7,86 +7,23 @@ version 1.0
 # If the output_map file is provided, it is expected to be a tab-separated file containing a list of all the read group ids
 # found in the input_cram / input_bam and the desired name of the unmapped bams generated for each.
 # If the file is not provided, the output names of the unmapped bams will be the read_group_id<unmapped_bam_suffix>
-workflow CramToUnmappedBams {
+workflow BamToFastq {
 
   input {
     File? input_cram
     File? input_bam
     File? ref_fasta
     File? ref_fasta_index
-    File? output_map
-    String unmapped_bam_suffix = ".unmapped.bam"
     Int additional_disk = 20
   }
 
-  if (defined(input_cram)) {
-    Float cram_size = size(input_cram, "GiB")
-    String bam_from_cram_name = basename(input_cram_path, ".cram")
-    String input_cram_path = select_first([input_cram])
-
-    call CramToBam {
-      input:
-        ref_fasta = select_first([ref_fasta]),
-        ref_fasta_index = select_first([ref_fasta_index]),
-        cram_file = select_first([input_cram]),
-        output_basename = bam_from_cram_name,
-        disk_size = ceil(cram_size * 6) + additional_disk
-    }
-  }
-
-  File input_file = select_first([CramToBam.output_bam, input_bam])
+  File input_file = input_bam
   Float input_size = size(input_file, "GiB")
 
-  if (!defined(output_map)) {
-    call GenerateOutputMap {
-      input:
-        input_bam = input_file,
-        unmapped_bam_suffix = unmapped_bam_suffix,
-        disk_size = ceil(input_size) + additional_disk
-    }
-  }
-
-  call SplitUpOutputMapFile {
-    input:
-      read_group_map_file = select_first([output_map, GenerateOutputMap.output_map])
-  }
-
-  scatter (rg_map_file in SplitUpOutputMapFile.rg_to_ubam_file) {
-    call SplitOutUbamByReadGroup {
-      input:
-        input_bam = input_file,
-        rg_to_ubam_file = rg_map_file,
-        disk_size = ceil(input_size * 2) + additional_disk
-    }
-
-    String unmapped_bam_filename = basename(SplitOutUbamByReadGroup.output_bam)
-
-    call RevertSam {
-      input:
-        input_bam = SplitOutUbamByReadGroup.output_bam,
-        output_bam_filename = unmapped_bam_filename,
-        disk_size = ceil(input_size * 3) + additional_disk
-    }
-
-    call SortSam {
-      input:
-        input_bam = RevertSam.output_bam,
-        output_bam_filename = unmapped_bam_filename
-    }
-
-    Float unmapped_bam_size = size(SortSam.output_bam, "GiB")
-
-    call ValidateSamFile {
-      input:
-        input_bam = SortSam.output_bam,
-        report_filename = unmapped_bam_filename + ".validation_report",
-        disk_size = ceil(unmapped_bam_size) + additional_disk
-    }
-  }
+  String output_fq_basename = basename(input_file, ".bam")
 
   output {
-    Array[File] validation_report = ValidateSamFile.report
-    Array[File] unmapped_bams = SortSam.output_bam
+    File unmapped_bam = SortSam.output_bam
   }
   meta {
     allowNestedInputs: true
