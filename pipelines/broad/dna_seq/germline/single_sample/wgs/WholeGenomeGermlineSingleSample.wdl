@@ -43,6 +43,7 @@ workflow WholeGenomeGermlineSingleSample {
     Boolean to_cram = false
     Boolean check_contamination = true
     Boolean check_fingerprints = false
+    Boolean do_bqsr = false
 
     File? fingerprint_genotypes_file
     File? fingerprint_genotypes_index
@@ -71,6 +72,7 @@ workflow WholeGenomeGermlineSingleSample {
 
         check_contamination = check_contamination,
         check_fingerprints  = check_fingerprints,
+        do_bqsr             = do_bqsr,
 
         contamination_sites_ud  = references.contamination_sites_ud,
         contamination_sites_bed = references.contamination_sites_bed,
@@ -173,6 +175,11 @@ workflow WholeGenomeGermlineSingleSample {
 
   # Outputs that will be retained when execution is complete
   output {
+    File read_group_alignment_summary_metrics = AggregatedBamQC.read_group_alignment_summary_metrics
+    File read_group_gc_bias_detail_metrics = AggregatedBamQC.read_group_gc_bias_detail_metrics
+    File read_group_gc_bias_pdf = AggregatedBamQC.read_group_gc_bias_pdf
+    File read_group_gc_bias_summary_metrics = AggregatedBamQC.read_group_gc_bias_summary_metrics
+
     File? cross_check_fingerprints_metrics = UnmappedBamToAlignedBam.cross_check_fingerprints_metrics
 
     File? selfSM = UnmappedBamToAlignedBam.selfSM
@@ -193,10 +200,18 @@ workflow WholeGenomeGermlineSingleSample {
     File agg_quality_distribution_pdf = AggregatedBamQC.agg_quality_distribution_pdf
     File agg_quality_distribution_metrics = AggregatedBamQC.agg_quality_distribution_metrics
     File agg_error_summary_metrics = AggregatedBamQC.agg_error_summary_metrics
+
+    File? fingerprint_summary_metrics = AggregatedBamQC.fingerprint_summary_metrics
+    File? fingerprint_detail_metrics = AggregatedBamQC.fingerprint_detail_metrics
+
     File wgs_metrics = CollectWgsMetrics.metrics
     File raw_wgs_metrics = CollectRawWgsMetrics.metrics
 
     File? duplicate_metrics = dup_metrics
+    File? output_bqsr_reports = UnmappedBamToAlignedBam.output_bqsr_reports
+
+    File? gvcf_summary_metrics = BamToGvcf.vcf_summary_metrics
+    File? gvcf_detail_metrics = BamToGvcf.vcf_detail_metrics
 
     File? output_bam = provided_output_bam
     File? output_bam_index = provided_output_bam_index
@@ -204,6 +219,7 @@ workflow WholeGenomeGermlineSingleSample {
     File? output_cram = BamToCram.output_cram
     File? output_cram_index = BamToCram.output_cram_index
     File? output_cram_md5 = BamToCram.output_cram_md5
+
     File? validate_cram_file_report = BamToCram.validate_cram_file_report
 
     File output_vcf = BamToGvcf.output_vcf
