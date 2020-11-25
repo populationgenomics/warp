@@ -14,11 +14,12 @@ workflow VariantCalling {
     Int break_bands_at_multiples_of
     Float? contamination
     File input_bam
+    File input_bai
     File ref_fasta
     File ref_fasta_index
     File ref_dict
-    File dbsnp_vcf
-    File dbsnp_vcf_index
+    File? dbsnp_vcf
+    File? dbsnp_vcf_index
     String base_file_name
     String final_vcf_base_name
     Int agg_preemptible_tries
@@ -52,15 +53,16 @@ workflow VariantCalling {
     if (use_gatk3_haplotype_caller) {
       call Calling.HaplotypeCaller_GATK35_GVCF as HaplotypeCallerGATK3 {
         input:
-        input_bam = input_bam,
-        interval_list = scattered_interval_list,
-        gvcf_basename = base_file_name,
-        ref_dict = ref_dict,
-        ref_fasta = ref_fasta,
-        ref_fasta_index = ref_fasta_index,
-        contamination = contamination,
-        preemptible_tries = agg_preemptible_tries,
-        hc_scatter = hc_divisor
+          input_bam = input_bam,
+          input_bai = input_bai,
+          interval_list = scattered_interval_list,
+          gvcf_basename = base_file_name,
+          ref_dict = ref_dict,
+          ref_fasta = ref_fasta,
+          ref_fasta_index = ref_fasta_index,
+          contamination = contamination,
+          preemptible_tries = agg_preemptible_tries,
+          hc_scatter = hc_divisor
       }
     }
 
@@ -71,6 +73,7 @@ workflow VariantCalling {
         input:
           contamination = contamination,
           input_bam = input_bam,
+          input_bai = input_bai,
           interval_list = scattered_interval_list,
           vcf_basename = base_file_name,
           ref_dict = ref_dict,
@@ -117,37 +120,37 @@ workflow VariantCalling {
   }
 
   # Validate the (g)VCF output of HaplotypeCaller
-  call QC.ValidateVCF as ValidateVCF {
-    input:
-      input_vcf = MergeVCFs.output_vcf,
-      input_vcf_index = MergeVCFs.output_vcf_index,
-      dbsnp_vcf = dbsnp_vcf,
-      dbsnp_vcf_index = dbsnp_vcf_index,
-      ref_fasta = ref_fasta,
-      ref_fasta_index = ref_fasta_index,
-      ref_dict = ref_dict,
-      calling_interval_list = calling_interval_list,
-      is_gvcf = make_gvcf,
-      preemptible_tries = agg_preemptible_tries
-  }
-
-  # QC the (g)VCF
-  call QC.CollectVariantCallingMetrics as CollectVariantCallingMetrics {
-    input:
-      input_vcf = MergeVCFs.output_vcf,
-      input_vcf_index = MergeVCFs.output_vcf_index,
-      metrics_basename = final_vcf_base_name,
-      dbsnp_vcf = dbsnp_vcf,
-      dbsnp_vcf_index = dbsnp_vcf_index,
-      ref_dict = ref_dict,
-      evaluation_interval_list = evaluation_interval_list,
-      is_gvcf = make_gvcf,
-      preemptible_tries = agg_preemptible_tries
-  }
+#  call QC.ValidateVCF as ValidateVCF {
+#    input:
+#      input_vcf = MergeVCFs.output_vcf,
+#      input_vcf_index = MergeVCFs.output_vcf_index,
+#      dbsnp_vcf = dbsnp_vcf,
+#      dbsnp_vcf_index = dbsnp_vcf_index,
+#      ref_fasta = ref_fasta,
+#      ref_fasta_index = ref_fasta_index,
+#      ref_dict = ref_dict,
+#      calling_interval_list = calling_interval_list,
+#      is_gvcf = make_gvcf,
+#      preemptible_tries = agg_preemptible_tries
+#  }
+#
+#  # QC the (g)VCF
+#  call QC.CollectVariantCallingMetrics as CollectVariantCallingMetrics {
+#    input:
+#      input_vcf = MergeVCFs.output_vcf,
+#      input_vcf_index = MergeVCFs.output_vcf_index,
+#      metrics_basename = final_vcf_base_name,
+#      dbsnp_vcf = dbsnp_vcf,
+#      dbsnp_vcf_index = dbsnp_vcf_index,
+#      ref_dict = ref_dict,
+#      evaluation_interval_list = evaluation_interval_list,
+#      is_gvcf = make_gvcf,
+#      preemptible_tries = agg_preemptible_tries
+#  }
 
   output {
-    File vcf_summary_metrics = CollectVariantCallingMetrics.summary_metrics
-    File vcf_detail_metrics = CollectVariantCallingMetrics.detail_metrics
+#    File vcf_summary_metrics = CollectVariantCallingMetrics.summary_metrics
+#    File vcf_detail_metrics = CollectVariantCallingMetrics.detail_metrics
     File output_vcf = MergeVCFs.output_vcf
     File output_vcf_index = MergeVCFs.output_vcf_index
     File? bamout = MergeBamouts.output_bam

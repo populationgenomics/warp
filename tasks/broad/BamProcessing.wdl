@@ -37,7 +37,6 @@ task SortSam {
       CREATE_INDEX=true \
       CREATE_MD5_FILE=true \
       MAX_RECORDS_IN_RAM=300000
-
   }
   runtime {
     docker: "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.3-1564508330"
@@ -50,6 +49,40 @@ task SortSam {
     File output_bam = "~{output_bam_basename}.bam"
     File output_bam_index = "~{output_bam_basename}.bai"
     File output_bam_md5 = "~{output_bam_basename}.bam.md5"
+  }
+}
+
+# Sort BAM file by queryname order
+task SortSamByName {
+  input {
+    File input_bam
+    String output_bam_basename
+    Int preemptible_tries = 1
+    Int compression_level = 2
+  }
+  # SortSam spills to disk a lot more because we are only store 300000 records in RAM now because its faster for our data so it needs
+  # more disk space.  Also it spills to disk in an uncompressed format so we need to account for that with a larger multiplier
+  Float sort_sam_disk_multiplier = 6
+  Int disk_size = ceil(sort_sam_disk_multiplier * size(input_bam, "GiB")) + 20
+
+  command {
+    java -Dsamjdk.compression_level=~{compression_level} -Xms4000m -jar /usr/gitc/picard.jar \
+      SortSam \
+      INPUT=~{input_bam} \
+      OUTPUT=~{output_bam_basename}.bam \
+      SORT_ORDER=queryname \
+      MAX_RECORDS_IN_RAM=300000 \
+      VALIDATION_STRINGENCY=SILENT
+  }
+  runtime {
+    docker: "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.3-1564508330"
+    disks: "local-disk " + disk_size + " HDD"
+    cpu: "1"
+    memory: "5000 MiB"
+    preemptible: preemptible_tries
+  }
+  output {
+    File output_bam = "~{output_bam_basename}.bam"
   }
 }
 
