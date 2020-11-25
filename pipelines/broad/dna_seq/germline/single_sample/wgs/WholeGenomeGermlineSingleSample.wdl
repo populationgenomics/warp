@@ -57,6 +57,7 @@ workflow WholeGenomeGermlineSingleSample {
 
     Boolean provide_bam_output = false
     Boolean use_gatk3_haplotype_caller = true
+    Boolean validate_gvcf = true
   }
 
   # Not overridable:
@@ -67,38 +68,35 @@ workflow WholeGenomeGermlineSingleSample {
 
   String final_gvcf_base_name = select_first([sample_and_bam.final_gvcf_base_name, sample_and_bam.base_file_name])
 
-#  if (realign) {
-  call ToBam.UnmappedBamToAlignedBam {
-    input:
-      sample_and_bam              = sample_and_bam,
-      references                  = references,
-      papi_settings               = papi_settings,
+  if (realign) {
+    call ToBam.UnmappedBamToAlignedBam {
+      input:
+        sample_and_bam              = sample_and_bam,
+        references                  = references,
+        papi_settings               = papi_settings,
 
-      check_contamination = check_contamination,
-      check_fingerprints  = check_fingerprints,
+        check_contamination = check_contamination,
+        check_fingerprints  = check_fingerprints,
 
-      contamination_sites_ud  = references.contamination_sites_ud,
-      contamination_sites_bed = references.contamination_sites_bed,
-      contamination_sites_mu  = references.contamination_sites_mu,
+        contamination_sites_ud  = references.contamination_sites_ud,
+        contamination_sites_bed = references.contamination_sites_bed,
+        contamination_sites_mu  = references.contamination_sites_mu,
 
-      cross_check_fingerprints_by = cross_check_fingerprints_by,
-      haplotype_database_file     = references.haplotype_database_file,
-      lod_threshold               = lod_threshold,
-      recalibrated_bam_basename   = recalibrated_bam_basename
+        cross_check_fingerprints_by = cross_check_fingerprints_by,
+        haplotype_database_file     = references.haplotype_database_file,
+        lod_threshold               = lod_threshold,
+        recalibrated_bam_basename   = recalibrated_bam_basename
+    }
   }
-  File mapped_bam = UnmappedBamToAlignedBam.output_bam
-  File mapped_index = UnmappedBamToAlignedBam.output_bam_index
-  File dup_metrics = UnmappedBamToAlignedBam.duplicate_metrics
-#  }
-#  if (!realign) {
-#    File mapped_bam = sample_and_bam.mapped_bam
-#    File mapped_index = sample_and_bam.mapped_index
-#  }
-#  call IndexBam {
-#    input:
-#      bam_input = mapped_bam
-#  }
-#  File mapped_index = select_first([sample_and_bam.mapped_index, IndexBam.bam_index_output])
+  if (!realign) {
+    call ToBam.IndexBam {
+      input:
+        bam_input = mapped_bam
+    }
+  }
+  File mapped_bam = select_first([UnmappedBamToAlignedBam.output_bam, sample_and_bam.mapped_bam])
+  File mapped_index = select_first([UnmappedBamToAlignedBam.output_bam_index, sample_and_bam.mapped_index, IndexBam.bam_index_output])
+  File? dup_metrics = UnmappedBamToAlignedBam.duplicate_metrics
 
   call AggregatedQC.AggregatedBamQC {
     input:
@@ -170,7 +168,8 @@ workflow WholeGenomeGermlineSingleSample {
       base_file_name = sample_and_bam.base_file_name,
       final_vcf_base_name = final_gvcf_base_name,
       agg_preemptible_tries = papi_settings.agg_preemptible_tries,
-      use_gatk3_haplotype_caller = use_gatk3_haplotype_caller
+      use_gatk3_haplotype_caller = use_gatk3_haplotype_caller,
+      validate_gvcf = validate_gvcf
   }
 
   if (provide_bam_output) {
@@ -203,7 +202,7 @@ workflow WholeGenomeGermlineSingleSample {
     File wgs_metrics = CollectWgsMetrics.metrics
     File raw_wgs_metrics = CollectRawWgsMetrics.metrics
 
-    File duplicate_metrics = dup_metrics
+    File? duplicate_metrics = dup_metrics
 
     File? output_bam = provided_output_bam
     File? output_bam_index = provided_output_bam_index
