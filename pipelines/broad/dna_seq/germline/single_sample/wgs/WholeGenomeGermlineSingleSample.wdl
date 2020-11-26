@@ -7,7 +7,7 @@ version 1.0
 ## Indel discovery in human whole-genome data.
 ##
 ## Requirements/expectations :
-## - Human whole-genome pair-end sequencing data in a BAM format
+## - Human whole-genome pair-end sequencing data in a BAM or CRAM format
 ## - GVCF output names must end in ".g.vcf.gz"
 ## - Reference genome must be Hg38 with ALT contigs
 ##
