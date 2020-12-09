@@ -8,6 +8,13 @@ struct SampleAndBam {
   String sample_name
 }
 
+struct SampleAndFastqs {
+  String base_file_name
+  String? final_gvcf_base_name
+  Array[Array[File]] fastqs
+  String sample_name
+}
+
 struct SampleAndUnmappedBams {
   String base_file_name
   String? final_gvcf_base_name

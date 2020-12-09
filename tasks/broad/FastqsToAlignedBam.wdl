@@ -23,10 +23,10 @@ import "../../tasks/broad/Utilities.wdl" as Utils
 import "../../structs/dna_seq/DNASeqStructs.wdl" as Structs
 
 # WORKFLOW DEFINITION
-workflow UnmappedBamToAlignedBam {
+workflow FastqsToAlignedBam {
 
   input {
-    SampleAndBam sample_and_bam
+    SampleAndFastqs sample_and_fastqs
     DNASeqSingleSampleReferences references
     PapiSettings papi_settings
 
@@ -50,7 +50,7 @@ workflow UnmappedBamToAlignedBam {
 
   Float cutoff_for_large_rg_in_gb = 20.0
 
-  String sample_name = sample_and_bam.sample_name
+  String sample_name = sample_and_fastqs.sample_name
   String rg_line = "@RG\\tID:" + sample_name + "\\tSM:" + sample_name
   String bwa_commandline = "bwa mem -K 100000000 -p -v 3 -t 16 -Y -R '" + rg_line + "' $bash_ref_fasta "
 
@@ -58,69 +58,57 @@ workflow UnmappedBamToAlignedBam {
 
   # Get the size of the standard reference files as well as the additional reference files needed for BWA
 
-  String input_bam_basename = basename(sample_and_bam.mapped_bam, ".bam")
+  scatter (fastq_pair in sample_and_fastqs.fastqs) {
+    String input_basename = basename(fastq_pair[0], '_1.fastq.gz')
+    Float fastq_size = size(fastq_pair[0], "GiB") + size(fastq_pair[1], "GiB")
 
-  Float input_size = size(sample_and_bam.mapped_bam, "GiB")
+    call Alignment.SamToFastqAndBwaMemAndMba as SamToFastqAndBwaMemAndMba {
+      input:
+        input_fq1 = fastq_pair[0],
+        input_fq2 = fastq_pair[1],
+        bwa_commandline = bwa_commandline,
+        output_bam_basename = input_basename + ".aligned.unsorted",
+        reference_fasta = references.reference_fasta,
+        compression_level = compression_level,
+        preemptible_tries = papi_settings.preemptible_tries,
+        hard_clip_reads = hard_clip_reads
+    }
+
+    File output_aligned_bam = SamToFastqAndBwaMemAndMba.output_bam
+    Float mapped_bam_size = size(output_aligned_bam, "GiB")
+  }
+
+  # Sum the read group bam sizes to approximate the aggregated bam size
+  call Utils.SumFloats as SumFloats {
+    input:
+      sizes = mapped_bam_size,
+      preemptible_tries = papi_settings.preemptible_tries
+  }
+
   # MarkDuplicates and SortSam currently take too long for preemptibles if the input data is too large
   Float gb_size_cutoff_for_preemptibles = 110.0
-  Boolean input_too_large_for_preemptibles_1 = input_size > gb_size_cutoff_for_preemptibles
-
-  call Processing.SortSamByName {
-    input:
-      input_bam = sample_and_bam.mapped_bam,
-      output_bam_basename = input_bam_basename + ".sorted",
-      compression_level = compression_level,
-      preemptible_tries = if input_too_large_for_preemptibles_1 then 0 else papi_settings.agg_preemptible_tries
-  }
-
-  call BamToFastq {
-    input:
-      input_bam = SortSamByName.output_bam,
-      output_fq_basename = input_bam_basename,
-      disk_size = ceil(input_size * 6) + 20
-  }
-
-  File fq1 = BamToFastq.output_fq1
-  File fq2 = BamToFastq.output_fq2
-  call Alignment.SamToFastqAndBwaMemAndMba as SamToFastqAndBwaMemAndMba {
-    input:
-      input_fq1 = fq1,
-      input_fq2 = fq2,
-      bwa_commandline = bwa_commandline,
-      output_bam_basename = input_bam_basename + ".aligned.unsorted",
-      reference_fasta = references.reference_fasta,
-      compression_level = compression_level,
-      preemptible_tries = papi_settings.preemptible_tries,
-      hard_clip_reads = hard_clip_reads
-  }
-#  }
-
-  File output_aligned_bam = SamToFastqAndBwaMemAndMba.output_bam
-  Float mapped_bam_size = size(output_aligned_bam, "GiB")
-
-  # MarkDuplicates and SortSam currently take too long for preemptibles if the input data is too large
-  Boolean input_too_large_for_preemptibles_2 = mapped_bam_size > gb_size_cutoff_for_preemptibles
+  Boolean data_too_large_for_preemptibles = SumFloats.total_size > gb_size_cutoff_for_preemptibles
 
   # Aggregate aligned+merged flowcell BAM files and mark duplicates
   # We take advantage of the tool's ability to take multiple BAM inputs and write out a single output
   # to avoid having to spend time just merging BAM files.
   call Processing.MarkDuplicates as MarkDuplicates {
     input:
-      input_bams = [output_aligned_bam],
-      output_bam_basename = sample_and_bam.base_file_name + ".aligned.unsorted.duplicates_marked",
-      metrics_filename = sample_and_bam.base_file_name + ".duplicate_metrics",
-      total_input_size = mapped_bam_size,
+      input_bams = output_aligned_bam,
+      output_bam_basename = sample_and_fastqs.base_file_name + ".aligned.unsorted.duplicates_marked",
+      metrics_filename = sample_and_fastqs.base_file_name + ".duplicate_metrics",
+      total_input_size = SumFloats.total_size,
       compression_level = compression_level,
-      preemptible_tries = if input_too_large_for_preemptibles_2 then 0 else papi_settings.agg_preemptible_tries
+      preemptible_tries = if data_too_large_for_preemptibles then 0 else papi_settings.agg_preemptible_tries
   }
 
   # Sort aggregated+deduped BAM file and fix tags
   call Processing.SortSam as SortSampleBam {
     input:
       input_bam = MarkDuplicates.output_bam,
-      output_bam_basename = sample_and_bam.base_file_name + ".aligned.duplicate_marked.sorted",
+      output_bam_basename = sample_and_fastqs.base_file_name + ".aligned.duplicate_marked.sorted",
       compression_level = compression_level,
-      preemptible_tries = if input_too_large_for_preemptibles_2 then 0 else papi_settings.agg_preemptible_tries
+      preemptible_tries = if data_too_large_for_preemptibles then 0 else papi_settings.agg_preemptible_tries
   }
 
   Float agg_bam_size = size(SortSampleBam.output_bam, "GiB")
@@ -132,7 +120,7 @@ workflow UnmappedBamToAlignedBam {
         input_bams = [ SortSampleBam.output_bam ],
         input_bam_indexes = [SortSampleBam.output_bam_index],
         haplotype_database_file = haplotype_database_file,
-        metrics_filename = sample_and_bam.base_file_name + ".crosscheck",
+        metrics_filename = sample_and_fastqs.base_file_name + ".crosscheck",
         total_input_size = agg_bam_size,
         lod_threshold = lod_threshold,
         cross_check_by = cross_check_fingerprints_by,
@@ -158,7 +146,7 @@ workflow UnmappedBamToAlignedBam {
         contamination_sites_mu = contamination_sites_mu,
         ref_fasta = references.reference_fasta.ref_fasta,
         ref_fasta_index = references.reference_fasta.ref_fasta_index,
-        output_prefix = sample_and_bam.base_file_name,
+        output_prefix = sample_and_fastqs.base_file_name,
         preemptible_tries = papi_settings.agg_preemptible_tries,
         contamination_underestimation_factor = 0.75
     }
@@ -178,7 +166,7 @@ workflow UnmappedBamToAlignedBam {
       call Processing.BaseRecalibrator as BaseRecalibrator {
         input:
           input_bam = SortSampleBam.output_bam,
-          recalibration_report_filename = sample_and_bam.base_file_name + ".recal_data.csv",
+          recalibration_report_filename = sample_and_fastqs.base_file_name + ".recal_data.csv",
           sequence_group_interval = subgroup,
           dbsnp_vcf = select_first([references.dbsnp_vcf]),
           dbsnp_vcf_index = select_first([references.dbsnp_vcf_index]),
@@ -197,7 +185,7 @@ workflow UnmappedBamToAlignedBam {
     call Processing.GatherBqsrReports as GatherBqsrReports {
       input:
         input_bqsr_reports = BaseRecalibrator.recalibration_report,
-        output_report_filename = sample_and_bam.base_file_name + ".recal_data.csv",
+        output_report_filename = sample_and_fastqs.base_file_name + ".recal_data.csv",
         preemptible_tries = papi_settings.preemptible_tries
     }
 
@@ -224,7 +212,7 @@ workflow UnmappedBamToAlignedBam {
     call Processing.GatherSortedBamFiles as GatherBamFiles {
       input:
         input_bams = ApplyBQSR.recalibrated_bam,
-        output_bam_basename = sample_and_bam.base_file_name,
+        output_bam_basename = sample_and_fastqs.base_file_name,
         total_input_size = agg_bam_size,
         compression_level = compression_level,
         preemptible_tries = papi_settings.agg_preemptible_tries
@@ -276,32 +264,5 @@ task IndexBam {
 
   output {
     File bam_index_output = bam_index_output_name
-  }
-}
-
-task BamToFastq {
-  input {
-    File input_bam
-    String output_fq_basename
-    Int disk_size
-  }
-
-  command <<<
-    samtools fastq ~{input_bam} \
-    -1 ~{output_fq_basename}.1.fq \
-    -2 ~{output_fq_basename}.2.fq \
-    -0 /dev/null -s /dev/null
-  >>>
-
-  runtime {
-    docker: "biocontainers/samtools:1.3.1"
-    disks: "local-disk " + disk_size + " HDD"
-    memory: "4 GiB"
-    preemptible: 3
-  }
-
-  output {
-    File output_fq1 = output_fq_basename + '.1.fq'
-    File output_fq2 = output_fq_basename + '.2.fq'
   }
 }
