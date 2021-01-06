@@ -1,7 +1,8 @@
 version 1.0
 
-import "../../../../pipelines/broad/dna_seq/germline/single_sample/wgs/WGSFromFastq.wdl" as WGSFromFastq
-import "../../../../structs/dna_seq/DNASeqStructs.wdl"
+import "WGSFromFastq.wdl" as WGSFromFastq
+import "../../../../../../tasks/broad/BamProcessing.wdl" as Processing
+import "../../../../../../structs/dna_seq/DNASeqStructs.wdl"
 
 workflow WGSFromBam {
 
@@ -15,7 +16,6 @@ workflow WGSFromBam {
     String sample_name
     String base_file_name
     String final_gvcf_base_name
-    String unmapped_bam_suffix
 
     File? cram_ref_fasta
     File? cram_ref_fasta_index
@@ -28,6 +28,12 @@ workflow WGSFromBam {
     File? fingerprint_genotypes_index
 
     File wgs_coverage_interval_list
+
+    Boolean to_cram = false
+    Boolean check_contamination = true
+    Boolean check_fingerprints = false
+    Boolean provide_bam_output = false
+    Boolean validate_gvcf = true
   }
 
   Int compression_level = 2
@@ -38,7 +44,7 @@ workflow WGSFromBam {
 
   call Processing.SortSamByName {
     input:
-      input_bam = input_bam,
+      input_bam = select_first([input_bam, input_cram]),
       output_bam_basename = base_file_name + ".sorted",
       compression_level = compression_level,
       preemptible_tries = if input_too_large_for_preemptibles_1 then 0 else papi_settings.agg_preemptible_tries
@@ -54,10 +60,9 @@ workflow WGSFromBam {
   SampleAndFastqs sample_and_fastqs = object {
      sample_name: sample_name,
      base_file_name: base_file_name,
-     fastqs: [BamToFastq.output_fq1, BamToFastq.output_fq2],
+     fastqs: [[BamToFastq.output_fq1], [BamToFastq.output_fq2]],
      final_gvcf_base_name: final_gvcf_base_name,
-     unmapped_bam_suffix: unmapped_bam_suffix
-  }
+   }
 
   call WGSFromFastq.WGSFromFastq {
     input:
@@ -67,7 +72,13 @@ workflow WGSFromBam {
       fingerprint_genotypes_file = fingerprint_genotypes_file,
       fingerprint_genotypes_index = fingerprint_genotypes_index,
       papi_settings = papi_settings,
-      wgs_coverage_interval_list = wgs_coverage_interval_list
+      wgs_coverage_interval_list = wgs_coverage_interval_list,
+
+      to_cram = to_cram,
+      check_contamination = check_contamination,
+      check_fingerprints = check_fingerprints,
+      validate_gvcf = validate_gvcf,
+      provide_bam_output = provide_bam_output
   }
 
   output {
@@ -114,7 +125,7 @@ workflow WGSFromBam {
     File raw_wgs_metrics = WGSFromFastq.raw_wgs_metrics
 
     File? duplicate_metrics = WGSFromFastq.duplicate_metrics
-    File?output_bqsr_reports = WGSFromFastq.output_bqsr_reports
+    File? output_bqsr_reports = WGSFromFastq.output_bqsr_reports
 
     File? gvcf_summary_metrics = WGSFromFastq.gvcf_summary_metrics
     File? gvcf_detail_metrics = WGSFromFastq.gvcf_detail_metrics
