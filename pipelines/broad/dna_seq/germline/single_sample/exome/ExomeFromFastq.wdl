@@ -155,6 +155,7 @@ workflow ExomeFromFastq {
       ref_fasta = references.reference_fasta.ref_fasta,
       ref_fasta_index = references.reference_fasta.ref_fasta_index,
       target_interval_list = target_interval_list,
+      bait_interval_list = target_interval_list,
       preemptible_tries = papi_settings.agg_preemptible_tries
   }
 

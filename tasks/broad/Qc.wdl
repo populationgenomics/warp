@@ -505,6 +505,7 @@ task CollectHsMetrics {
     File ref_fasta_index
     String metrics_filename
     File target_interval_list
+    File bait_interval_list
     Int preemptible_tries
     Int memory_multiplier = 1
     Int additional_disk = 20
@@ -526,6 +527,7 @@ task CollectHsMetrics {
       REFERENCE_SEQUENCE=~{ref_fasta} \
       VALIDATION_STRINGENCY=SILENT \
       TARGET_INTERVALS=~{target_interval_list} \
+      BAIT_INTERVALS=~{bait_interval_list} \
       METRIC_ACCUMULATION_LEVEL=null \
       METRIC_ACCUMULATION_LEVEL=SAMPLE \
       METRIC_ACCUMULATION_LEVEL=LIBRARY \
