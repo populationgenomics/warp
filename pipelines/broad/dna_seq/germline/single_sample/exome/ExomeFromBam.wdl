@@ -61,7 +61,7 @@ workflow ExomeFromBam {
   SampleAndFastqs sample_and_fastqs = object {
      sample_name: sample_name,
      base_file_name: base_file_name,
-     fastqs: [[BamToFastq.output_fq1], [BamToFastq.output_fq2]],
+     fastqs: [[BamToFastq.output_fq1, BamToFastq.output_fq2]],
      final_gvcf_base_name: final_gvcf_base_name,
   }
 
