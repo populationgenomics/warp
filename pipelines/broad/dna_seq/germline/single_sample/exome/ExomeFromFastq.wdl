@@ -174,8 +174,6 @@ workflow ExomeFromFastq {
     File calculate_read_group_checksum_md5 = AggregatedBamQC.calculate_read_group_checksum_md5
 
     File agg_alignment_summary_metrics = AggregatedBamQC.agg_alignment_summary_metrics
-#    File agg_bait_bias_detail_metrics = AggregatedBamQC.agg_bait_bias_detail_metrics
-#    File agg_bait_bias_summary_metrics = AggregatedBamQC.agg_bait_bias_summary_metrics
     File agg_insert_size_histogram_pdf = AggregatedBamQC.agg_insert_size_histogram_pdf
     File agg_insert_size_metrics = AggregatedBamQC.agg_insert_size_metrics
     File agg_pre_adapter_detail_metrics = AggregatedBamQC.agg_pre_adapter_detail_metrics

@@ -92,8 +92,6 @@ workflow ExomeFromBam {
     File calculate_read_group_checksum_md5 = ExomeFromFastq.calculate_read_group_checksum_md5
 
     File agg_alignment_summary_metrics = ExomeFromFastq.agg_alignment_summary_metrics
-#    File agg_bait_bias_detail_metrics = ExomeFromFastq.agg_bait_bias_detail_metrics
-#    File agg_bait_bias_summary_metrics = ExomeFromFastq.agg_bait_bias_summary_metrics
     File agg_insert_size_histogram_pdf = ExomeFromFastq.agg_insert_size_histogram_pdf
     File agg_insert_size_metrics = ExomeFromFastq.agg_insert_size_metrics
     File agg_pre_adapter_detail_metrics = ExomeFromFastq.agg_pre_adapter_detail_metrics
