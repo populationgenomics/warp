@@ -84,19 +84,6 @@ workflow ExomeFromBam {
 
   # Outputs that will be retained when execution is complete
   output {
-#    Array[File] quality_yield_metrics = ExomeFromFastq.quality_yield_metrics
-#
-#    Array[File] unsorted_read_group_base_distribution_by_cycle_pdf = ExomeFromFastq.unsorted_read_group_base_distribution_by_cycle_pdf
-#    Array[File] unsorted_read_group_base_distribution_by_cycle_metrics = ExomeFromFastq.unsorted_read_group_base_distribution_by_cycle_metrics
-#    Array[File] unsorted_read_group_insert_size_histogram_pdf = ExomeFromFastq.unsorted_read_group_insert_size_histogram_pdf
-#    Array[File] unsorted_read_group_insert_size_metrics = ExomeFromFastq.unsorted_read_group_insert_size_metrics
-#    Array[File] unsorted_read_group_quality_by_cycle_pdf = ExomeFromFastq.unsorted_read_group_quality_by_cycle_pdf
-#    Array[File] unsorted_read_group_quality_by_cycle_metrics = ExomeFromFastq.unsorted_read_group_quality_by_cycle_metrics
-#    Array[File] unsorted_read_group_quality_distribution_pdf = ExomeFromFastq.unsorted_read_group_quality_distribution_pdf
-#    Array[File] unsorted_read_group_quality_distribution_metrics = ExomeFromFastq.unsorted_read_group_quality_distribution_metrics
-#
-#    File read_group_alignment_summary_metrics = ExomeFromFastq.read_group_alignment_summary_metrics
-
     File? cross_check_fingerprints_metrics = ExomeFromFastq.cross_check_fingerprints_metrics
 
     File? selfSM = ExomeFromFastq.selfSM

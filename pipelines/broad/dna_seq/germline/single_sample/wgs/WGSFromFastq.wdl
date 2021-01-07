@@ -167,11 +167,6 @@ workflow WGSFromFastq {
 
   # Outputs that will be retained when execution is complete
   output {
-#    File read_group_alignment_summary_metrics = AggregatedBamQC.read_group_alignment_summary_metrics
-#    File read_group_gc_bias_detail_metrics = AggregatedBamQC.read_group_gc_bias_detail_metrics
-#    File read_group_gc_bias_pdf = AggregatedBamQC.read_group_gc_bias_pdf
-#    File read_group_gc_bias_summary_metrics = AggregatedBamQC.read_group_gc_bias_summary_metrics
-
     File? cross_check_fingerprints_metrics = FastqsToAlignedBam.cross_check_fingerprints_metrics
 
     File? selfSM = FastqsToAlignedBam.selfSM
