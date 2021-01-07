@@ -55,8 +55,6 @@ workflow ExomeFromFastq {
     File? fingerprint_genotypes_index
 
     File target_interval_list
-    File bait_interval_list
-    String bait_set_name
 
     Boolean provide_bam_output = false
     Boolean validate_gvcf = true
@@ -71,7 +69,6 @@ workflow ExomeFromFastq {
 
   call Processing.GenerateSubsettedContaminationResources {
     input:
-        bait_set_name = bait_set_name,
         target_interval_list = target_interval_list,
         contamination_sites_bed = references.contamination_sites_bed,
         contamination_sites_mu = references.contamination_sites_mu,
@@ -158,7 +155,6 @@ workflow ExomeFromFastq {
       ref_fasta = references.reference_fasta.ref_fasta,
       ref_fasta_index = references.reference_fasta.ref_fasta_index,
       target_interval_list = target_interval_list,
-      bait_interval_list = bait_interval_list,
       preemptible_tries = papi_settings.agg_preemptible_tries
   }
 
@@ -190,8 +186,8 @@ workflow ExomeFromFastq {
     File calculate_read_group_checksum_md5 = AggregatedBamQC.calculate_read_group_checksum_md5
 
     File agg_alignment_summary_metrics = AggregatedBamQC.agg_alignment_summary_metrics
-    File agg_bait_bias_detail_metrics = AggregatedBamQC.agg_bait_bias_detail_metrics
-    File agg_bait_bias_summary_metrics = AggregatedBamQC.agg_bait_bias_summary_metrics
+#    File agg_bait_bias_detail_metrics = AggregatedBamQC.agg_bait_bias_detail_metrics
+#    File agg_bait_bias_summary_metrics = AggregatedBamQC.agg_bait_bias_summary_metrics
     File agg_insert_size_histogram_pdf = AggregatedBamQC.agg_insert_size_histogram_pdf
     File agg_insert_size_metrics = AggregatedBamQC.agg_insert_size_metrics
     File agg_pre_adapter_detail_metrics = AggregatedBamQC.agg_pre_adapter_detail_metrics

@@ -29,8 +29,6 @@ workflow ExomeFromBam {
     File? fingerprint_genotypes_index
 
     File target_interval_list
-    File bait_interval_list
-    String bait_set_name
 
     Boolean to_cram = false
     Boolean check_contamination = true
@@ -76,8 +74,6 @@ workflow ExomeFromBam {
       fingerprint_genotypes_index = fingerprint_genotypes_index,
       papi_settings = papi_settings,
       target_interval_list = target_interval_list,
-      bait_interval_list = bait_interval_list,
-      bait_set_name = bait_set_name,
 
       to_cram = to_cram,
       check_contamination = check_contamination,
@@ -109,8 +105,8 @@ workflow ExomeFromBam {
     File calculate_read_group_checksum_md5 = ExomeFromFastq.calculate_read_group_checksum_md5
 
     File agg_alignment_summary_metrics = ExomeFromFastq.agg_alignment_summary_metrics
-    File agg_bait_bias_detail_metrics = ExomeFromFastq.agg_bait_bias_detail_metrics
-    File agg_bait_bias_summary_metrics = ExomeFromFastq.agg_bait_bias_summary_metrics
+#    File agg_bait_bias_detail_metrics = ExomeFromFastq.agg_bait_bias_detail_metrics
+#    File agg_bait_bias_summary_metrics = ExomeFromFastq.agg_bait_bias_summary_metrics
     File agg_insert_size_histogram_pdf = ExomeFromFastq.agg_insert_size_histogram_pdf
     File agg_insert_size_metrics = ExomeFromFastq.agg_insert_size_metrics
     File agg_pre_adapter_detail_metrics = ExomeFromFastq.agg_pre_adapter_detail_metrics

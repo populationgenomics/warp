@@ -166,7 +166,6 @@ workflow FastqsToAlignedBam {
       call Processing.BaseRecalibrator as BaseRecalibrator {
         input:
           input_bam = SortSampleBam.output_bam,
-          input_bam_index = SortSampleBam.output_bam_index,
           recalibration_report_filename = sample_and_fastqs.base_file_name + ".recal_data.csv",
           sequence_group_interval = subgroup,
           dbsnp_vcf = select_first([references.dbsnp_vcf]),
@@ -195,7 +194,6 @@ workflow FastqsToAlignedBam {
       call Processing.ApplyBQSR as ApplyBQSR {
         input:
           input_bam = SortSampleBam.output_bam,
-          input_bam_index = SortSampleBam.output_bam_index,
           output_bam_basename = recalibrated_bam_basename,
           recalibration_report = GatherBqsrReports.output_bqsr_report,
           sequence_group_interval = subgroup,

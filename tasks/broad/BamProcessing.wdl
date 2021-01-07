@@ -449,7 +449,6 @@ task GatherUnsortedBamFiles {
 
 task GenerateSubsettedContaminationResources {
   input {
-    String bait_set_name
     File target_interval_list
     File contamination_sites_ud
     File contamination_sites_bed
@@ -457,9 +456,9 @@ task GenerateSubsettedContaminationResources {
     Int preemptible_tries
   }
 
-  String output_ud = bait_set_name + "." + basename(contamination_sites_ud)
-  String output_bed = bait_set_name + "." + basename(contamination_sites_bed)
-  String output_mu = bait_set_name + "." + basename(contamination_sites_mu)
+  String output_ud = "exome." + basename(contamination_sites_ud)
+  String output_bed = "exome." + basename(contamination_sites_bed)
+  String output_mu = "exome." + basename(contamination_sites_mu)
   String target_overlap_counts = "target_overlap_counts.txt"
 
   command <<<
