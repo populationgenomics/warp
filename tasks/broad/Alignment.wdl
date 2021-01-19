@@ -20,7 +20,8 @@ import "../../structs/dna_seq/DNASeqStructs.wdl"
 # Read unmapped BAM, convert on-the-fly to FASTQ and stream to BWA MEM for alignment, then stream to MergeBamAlignment
 task SamToFastqAndBwaMemAndMba {
   input {
-    File input_bam
+    File input_fq1
+    File input_fq2
     String bwa_commandline
     String output_bam_basename
 
@@ -34,13 +35,13 @@ task SamToFastqAndBwaMemAndMba {
     Boolean hard_clip_reads = false
   }
 
-  Float unmapped_bam_size = size(input_bam, "GiB")
+  Float fq_size = size(input_fq1, "GiB") + size(input_fq1, "GiB")
   Float ref_size = size(reference_fasta.ref_fasta, "GiB") + size(reference_fasta.ref_fasta_index, "GiB") + size(reference_fasta.ref_dict, "GiB")
   Float bwa_ref_size = ref_size + size(reference_fasta.ref_alt, "GiB") + size(reference_fasta.ref_amb, "GiB") + size(reference_fasta.ref_ann, "GiB") + size(reference_fasta.ref_bwt, "GiB") + size(reference_fasta.ref_pac, "GiB") + size(reference_fasta.ref_sa, "GiB")
   # Sometimes the output is larger than the input, or a task can spill to disk.
   # In these cases we need to account for the input (1) and the output (1.5) or the input(1), the output(1), and spillage (.5).
   Float disk_multiplier = 2.5
-  Int disk_size = ceil(unmapped_bam_size + bwa_ref_size + (disk_multiplier * unmapped_bam_size) + 20)
+  Int disk_size = ceil(fq_size + bwa_ref_size + (disk_multiplier * fq_size) + 20)
 
   command <<<
 
@@ -62,47 +63,10 @@ task SamToFastqAndBwaMemAndMba {
     bash_ref_fasta=~{reference_fasta.ref_fasta}
     # if reference_fasta.ref_alt has data in it,
     if [ -s ~{reference_fasta.ref_alt} ]; then
-      java -Xms1000m -Xmx1000m -jar /usr/gitc/picard.jar \
-        SamToFastq \
-        INPUT=~{input_bam} \
-        FASTQ=/dev/stdout \
-        INTERLEAVE=true \
-        NON_PF=true | \
-      /usr/gitc/~{bwa_commandline} /dev/stdin - 2> >(tee ~{output_bam_basename}.bwa.stderr.log >&2) | \
-      java -Dsamjdk.compression_level=~{compression_level} -Xms1000m -Xmx1000m -jar /usr/gitc/picard.jar \
-        MergeBamAlignment \
-        VALIDATION_STRINGENCY=SILENT \
-        EXPECTED_ORIENTATIONS=FR \
-        ATTRIBUTES_TO_RETAIN=X0 \
-        ATTRIBUTES_TO_REMOVE=NM \
-        ATTRIBUTES_TO_REMOVE=MD \
-        ALIGNED_BAM=/dev/stdin \
-        UNMAPPED_BAM=~{input_bam} \
-        OUTPUT=~{output_bam_basename}.bam \
-        REFERENCE_SEQUENCE=~{reference_fasta.ref_fasta} \
-        PAIRED_RUN=true \
-        SORT_ORDER="unsorted" \
-        IS_BISULFITE_SEQUENCE=false \
-        ALIGNED_READS_ONLY=false \
-        CLIP_ADAPTERS=false \
-        ~{true='CLIP_OVERLAPPING_READS=true' false="" hard_clip_reads} \
-        ~{true='CLIP_OVERLAPPING_READS_OPERATOR=H' false="" hard_clip_reads} \
-        MAX_RECORDS_IN_RAM=2000000 \
-        ADD_MATE_CIGAR=true \
-        MAX_INSERTIONS_OR_DELETIONS=-1 \
-        PRIMARY_ALIGNMENT_STRATEGY=MostDistant \
-        PROGRAM_RECORD_ID="bwamem" \
-        PROGRAM_GROUP_VERSION="${BWA_VERSION}" \
-        PROGRAM_GROUP_COMMAND_LINE="~{bwa_commandline}" \
-        PROGRAM_GROUP_NAME="bwamem" \
-        UNMAPPED_READ_STRATEGY=COPY_TO_TAG \
-        ALIGNER_PROPER_PAIR_FLAGS=true \
-        UNMAP_CONTAMINANT_READS=true \
-        ADD_PG_TAG_TO_READS=false
-
-      grep -m1 "read .* ALT contigs" ~{output_bam_basename}.bwa.stderr.log | \
-      grep -v "read 0 ALT contigs"
-
+      /usr/gitc/~{bwa_commandline} \
+      ~{input_fq1} ~{input_fq2} 2> \
+      >(tee ~{output_bam_basename}.bwa.stderr.log >&2) | \
+      samtools view -Obam -o ~{output_bam_basename}.bam
     # else reference_fasta.ref_alt is empty or could not be found
     else
       exit 1;

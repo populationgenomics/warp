@@ -28,6 +28,8 @@ version 1.0
 ## page at https://hub.docker.com/r/broadinstitute/genomes-in-the-cloud/ for detailed
 ## licensing information pertaining to the included programs.
 
+#import "../../../../../../tasks/broad/cram_to_unmapped_bams/CramToUnmappedBams.wdl" as ToUBAM
+#import "WholeGenomeGermlineSingleSample.wdl" as WGSSS
 import "../../../../../../tasks/broad/UnmappedBamToAlignedBam.wdl" as ToBam
 import "../../../../../../tasks/broad/AggregatedBamQC.wdl" as AggregatedQC
 import "../../../../../../tasks/broad/Qc.wdl" as QC
@@ -41,7 +43,7 @@ workflow WholeGenomeGermlineSingleSample {
   String pipeline_version = "2.1.0"
 
   input {
-    SampleAndUnmappedBams sample_and_unmapped_bams
+    SampleAndBam sample_and_bam
     DNASeqSingleSampleReferences references
     VariantCallingScatterSettings scatter_settings
     PapiSettings papi_settings
@@ -59,13 +61,13 @@ workflow WholeGenomeGermlineSingleSample {
   Int read_length = 250
   Float lod_threshold = -20.0
   String cross_check_fingerprints_by = "READGROUP"
-  String recalibrated_bam_basename = sample_and_unmapped_bams.base_file_name + ".aligned.duplicates_marked.recalibrated"
+  String recalibrated_bam_basename = sample_and_bam.base_file_name + ".aligned.duplicates_marked.recalibrated"
 
-  String final_gvcf_base_name = select_first([sample_and_unmapped_bams.final_gvcf_base_name, sample_and_unmapped_bams.base_file_name])
+  String final_gvcf_base_name = select_first([sample_and_bam.final_gvcf_base_name, sample_and_bam.base_file_name])
 
   call ToBam.UnmappedBamToAlignedBam {
     input:
-      sample_and_unmapped_bams    = sample_and_unmapped_bams,
+      sample_and_bam              = sample_and_bam,
       references                  = references,
       papi_settings               = papi_settings,
 
@@ -83,8 +85,8 @@ workflow WholeGenomeGermlineSingleSample {
     input:
       base_recalibrated_bam = UnmappedBamToAlignedBam.output_bam,
       base_recalibrated_bam_index = UnmappedBamToAlignedBam.output_bam_index,
-      base_name = sample_and_unmapped_bams.base_file_name,
-      sample_name = sample_and_unmapped_bams.sample_name,
+      base_name = sample_and_bam.base_file_name,
+      sample_name = sample_and_bam.sample_name,
       recalibrated_bam_base_name = recalibrated_bam_basename,
       haplotype_database_file = references.haplotype_database_file,
       references = references,
@@ -101,7 +103,7 @@ workflow WholeGenomeGermlineSingleSample {
       ref_dict = references.reference_fasta.ref_dict,
       duplication_metrics = UnmappedBamToAlignedBam.duplicate_metrics,
       chimerism_metrics = AggregatedBamQC.agg_alignment_summary_metrics,
-      base_file_name = sample_and_unmapped_bams.base_file_name,
+      base_file_name = sample_and_bam.base_file_name,
       agg_preemptible_tries = papi_settings.agg_preemptible_tries
   }
 
@@ -110,7 +112,7 @@ workflow WholeGenomeGermlineSingleSample {
     input:
       input_bam = UnmappedBamToAlignedBam.output_bam,
       input_bam_index = UnmappedBamToAlignedBam.output_bam_index,
-      metrics_filename = sample_and_unmapped_bams.base_file_name + ".wgs_metrics",
+      metrics_filename = sample_and_bam.base_file_name + ".wgs_metrics",
       ref_fasta = references.reference_fasta.ref_fasta,
       ref_fasta_index = references.reference_fasta.ref_fasta_index,
       wgs_coverage_interval_list = wgs_coverage_interval_list,
@@ -123,7 +125,7 @@ workflow WholeGenomeGermlineSingleSample {
     input:
       input_bam = UnmappedBamToAlignedBam.output_bam,
       input_bam_index = UnmappedBamToAlignedBam.output_bam_index,
-      metrics_filename = sample_and_unmapped_bams.base_file_name + ".raw_wgs_metrics",
+      metrics_filename = sample_and_bam.base_file_name + ".raw_wgs_metrics",
       ref_fasta = references.reference_fasta.ref_fasta,
       ref_fasta_index = references.reference_fasta.ref_fasta_index,
       wgs_coverage_interval_list = wgs_coverage_interval_list,
@@ -144,7 +146,7 @@ workflow WholeGenomeGermlineSingleSample {
       ref_dict = references.reference_fasta.ref_dict,
       dbsnp_vcf = references.dbsnp_vcf,
       dbsnp_vcf_index = references.dbsnp_vcf_index,
-      base_file_name = sample_and_unmapped_bams.base_file_name,
+      base_file_name = sample_and_bam.base_file_name,
       final_vcf_base_name = final_gvcf_base_name,
       agg_preemptible_tries = papi_settings.agg_preemptible_tries,
       use_gatk3_haplotype_caller = use_gatk3_haplotype_caller
@@ -157,16 +159,16 @@ workflow WholeGenomeGermlineSingleSample {
 
   # Outputs that will be retained when execution is complete
   output {
-    Array[File] quality_yield_metrics = UnmappedBamToAlignedBam.quality_yield_metrics
+    File quality_yield_metrics = UnmappedBamToAlignedBam.quality_yield_metrics
 
-    Array[File] unsorted_read_group_base_distribution_by_cycle_pdf = UnmappedBamToAlignedBam.unsorted_read_group_base_distribution_by_cycle_pdf
-    Array[File] unsorted_read_group_base_distribution_by_cycle_metrics = UnmappedBamToAlignedBam.unsorted_read_group_base_distribution_by_cycle_metrics
-    Array[File] unsorted_read_group_insert_size_histogram_pdf = UnmappedBamToAlignedBam.unsorted_read_group_insert_size_histogram_pdf
-    Array[File] unsorted_read_group_insert_size_metrics = UnmappedBamToAlignedBam.unsorted_read_group_insert_size_metrics
-    Array[File] unsorted_read_group_quality_by_cycle_pdf = UnmappedBamToAlignedBam.unsorted_read_group_quality_by_cycle_pdf
-    Array[File] unsorted_read_group_quality_by_cycle_metrics = UnmappedBamToAlignedBam.unsorted_read_group_quality_by_cycle_metrics
-    Array[File] unsorted_read_group_quality_distribution_pdf = UnmappedBamToAlignedBam.unsorted_read_group_quality_distribution_pdf
-    Array[File] unsorted_read_group_quality_distribution_metrics = UnmappedBamToAlignedBam.unsorted_read_group_quality_distribution_metrics
+    File unsorted_read_group_base_distribution_by_cycle_pdf = UnmappedBamToAlignedBam.unsorted_read_group_base_distribution_by_cycle_pdf
+    File unsorted_read_group_base_distribution_by_cycle_metrics = UnmappedBamToAlignedBam.unsorted_read_group_base_distribution_by_cycle_metrics
+    File unsorted_read_group_insert_size_histogram_pdf = UnmappedBamToAlignedBam.unsorted_read_group_insert_size_histogram_pdf
+    File unsorted_read_group_insert_size_metrics = UnmappedBamToAlignedBam.unsorted_read_group_insert_size_metrics
+    File unsorted_read_group_quality_by_cycle_pdf = UnmappedBamToAlignedBam.unsorted_read_group_quality_by_cycle_pdf
+    File unsorted_read_group_quality_by_cycle_metrics = UnmappedBamToAlignedBam.unsorted_read_group_quality_by_cycle_metrics
+    File unsorted_read_group_quality_distribution_pdf = UnmappedBamToAlignedBam.unsorted_read_group_quality_distribution_pdf
+    File unsorted_read_group_quality_distribution_metrics = UnmappedBamToAlignedBam.unsorted_read_group_quality_distribution_metrics
 
     File read_group_alignment_summary_metrics = AggregatedBamQC.read_group_alignment_summary_metrics
     File read_group_gc_bias_detail_metrics = AggregatedBamQC.read_group_gc_bias_detail_metrics
@@ -201,7 +203,6 @@ workflow WholeGenomeGermlineSingleSample {
     File raw_wgs_metrics = CollectRawWgsMetrics.metrics
 
     File duplicate_metrics = UnmappedBamToAlignedBam.duplicate_metrics
-    File output_bqsr_reports = UnmappedBamToAlignedBam.output_bqsr_reports
 
     File gvcf_summary_metrics = BamToGvcf.vcf_summary_metrics
     File gvcf_detail_metrics = BamToGvcf.vcf_detail_metrics

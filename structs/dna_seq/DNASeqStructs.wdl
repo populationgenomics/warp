@@ -1,5 +1,20 @@
 version 1.0
 
+struct SampleAndBam {
+  String base_file_name
+  String? final_gvcf_base_name
+  File mapped_bam
+  File? mapped_index
+  String sample_name
+}
+
+struct SampleAndFastqs {
+  String base_file_name
+  String? final_gvcf_base_name
+  Array[Array[File]] fastqs
+  String sample_name
+}
+
 struct SampleAndUnmappedBams {
   String base_file_name
   String? final_gvcf_base_name
@@ -31,8 +46,8 @@ struct DNASeqSingleSampleReferences {
   Array[File] known_indels_sites_vcfs
   Array[File] known_indels_sites_indices
 
-  File dbsnp_vcf
-  File dbsnp_vcf_index
+  File? dbsnp_vcf
+  File? dbsnp_vcf_index
 
   File evaluation_interval_list
 
