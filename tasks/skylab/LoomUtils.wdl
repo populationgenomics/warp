@@ -3,7 +3,7 @@ version 1.0
 task SmartSeq2LoomOutput {
   input {
     #runtime values
-    String docker = "quay.io/humancellatlas/secondary-analysis-loom-output:0.0.4-ss2-loom-fix-1"
+    String docker = "quay.io/humancellatlas/secondary-analysis-loom-output:0.0.6-1"
     # the gene count file "<input_id>_rsem.genes.results" in the task results folder call-RSEMExpression
     File rsem_gene_results
     # file named "<input_id>_QCs.csv" in the folder  "call-GroupQCOutputs/glob-*" of the the SS2  output
@@ -17,6 +17,8 @@ task SmartSeq2LoomOutput {
     String pipeline_version
     Int preemptible = 3
     Int disk = 200
+    Int machine_mem_mb = 18
+    Int cpu = 4
   }
 
   meta {
@@ -43,8 +45,8 @@ task SmartSeq2LoomOutput {
 
   runtime {
     docker: docker
-    cpu: 4  # note that only 1 thread is supported by pseudobam
-    memory: "18 GiB"
+    cpu: cpu  # note that only 1 thread is supported by pseudobam
+    memory: "~{machine_mem_mb} GiB"
     disks: "local-disk ~{disk} HDD"
     preemptible: preemptible
   }
@@ -59,7 +61,7 @@ task OptimusLoomGeneration {
 
   input {
     #runtime values
-    String docker = "quay.io/humancellatlas/secondary-analysis-loom-output:0.0.4-ss2-loom-fix-1"
+    String docker = "quay.io/humancellatlas/secondary-analysis-loom-output:0.0.6-1"
     # name of the sample
     String input_id
     # user provided id
@@ -86,6 +88,8 @@ task OptimusLoomGeneration {
 
     Int preemptible = 3
     Int disk = 200
+    Int machine_mem_mb = 18
+    Int cpu = 4
   }
 
   meta {
@@ -127,8 +131,8 @@ task OptimusLoomGeneration {
 
   runtime {
     docker: docker
-    cpu: 4  # note that only 1 thread is supported by pseudobam
-    memory: "18 GiB"
+    cpu: cpu  # note that only 1 thread is supported by pseudobam
+    memory: "~{machine_mem_mb} GiB"
     disks: "local-disk ~{disk} HDD"
     preemptible: preemptible
   }
@@ -144,9 +148,16 @@ task AggregateSmartSeq2Loom {
         Array[File] loom_input
         String batch_id
         String? batch_name
+        String? project_id
+        String? project_name
+        String? library
+        String? species
+        String? organ
         String pipeline_version
-        String docker = "quay.io/humancellatlas/secondary-analysis-loom-output:0.0.4-ss2-loom-fix-1"
+        String docker = "quay.io/humancellatlas/secondary-analysis-loom-output:0.0.6-1"
         Int disk = 200
+        Int machine_mem_mb = 4
+        Int cpu = 1
     }
 
     meta {
@@ -162,6 +173,11 @@ task AggregateSmartSeq2Loom {
       --output-loom-file "~{batch_id}.loom" \
       --batch_id ~{batch_id} \
       ~{"--batch_name " + batch_name} \
+      ~{"--project_id " + project_id} \
+      ~{"--project_name " + project_name} \
+      ~{"--library " + library} \
+      ~{"--species " + species} \
+      ~{"--organ " + organ} \
       --pipeline_version ~{pipeline_version}
 
 
@@ -173,9 +189,9 @@ task AggregateSmartSeq2Loom {
 
     runtime {
       docker: docker
-      memory: "3.5 GiB"
+      cpu: cpu
+      memory: "~{machine_mem_mb} GiB"
       disks: "local-disk ~{disk} HDD"
-      cpu: 1
       preemptible: 3
       maxRetries: 1
     }

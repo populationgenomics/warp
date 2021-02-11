@@ -29,7 +29,7 @@ task SortSam {
   Int disk_size = ceil(sort_sam_disk_multiplier * size(input_bam, "GiB")) + 20
 
   command {
-    java -Dsamjdk.compression_level=~{compression_level} -Xms4000m -jar /usr/gitc/picard.jar \
+    java -Dsamjdk.compression_level=~{compression_level} -Xms4000m -jar /usr/picard/picard.jar \
       SortSam \
       INPUT=~{input_bam} \
       OUTPUT=~{output_bam_basename}.bam \
@@ -39,7 +39,7 @@ task SortSam {
       MAX_RECORDS_IN_RAM=300000
   }
   runtime {
-    docker: "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.3-1564508330"
+    docker: "us.gcr.io/broad-gotc-prod/picard-cloud:2.23.8"
     disks: "local-disk " + disk_size + " HDD"
     cpu: "1"
     memory: "5000 MiB"
@@ -93,7 +93,7 @@ task SortSamSpark {
     String output_bam_basename
     Int preemptible_tries
     Int compression_level
-    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.0.10.1"
+    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.8.0"
   }
   # SortSam spills to disk a lot more because we are only store 300000 records in RAM now because its faster for our data so it needs
   # more disk space.  Also it spills to disk in an uncompressed format so we need to account for that with a larger multiplier
@@ -156,7 +156,7 @@ task MarkDuplicates {
   # While query-grouped isn't actually query-sorted, it's good enough for MarkDuplicates with ASSUME_SORT_ORDER="queryname"
 
   command {
-    java -Dsamjdk.compression_level=~{compression_level} -Xms~{java_memory_size}g -jar /usr/gitc/picard.jar \
+    java -Dsamjdk.compression_level=~{compression_level} -Xms~{java_memory_size}g -jar /usr/picard/picard.jar \
       MarkDuplicates \
       INPUT=~{sep=' INPUT=' input_bams} \
       OUTPUT=~{output_bam_basename}.bam \
@@ -169,7 +169,7 @@ task MarkDuplicates {
       ADD_PG_TAG_TO_READS=false
   }
   runtime {
-    docker: "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.3-1564508330"
+    docker: "us.gcr.io/broad-gotc-prod/picard-cloud:2.23.8"
     preemptible: preemptible_tries
     memory: "~{memory_size} GiB"
     disks: "local-disk " + disk_size + " HDD"
@@ -242,6 +242,7 @@ task MarkDuplicatesSpark {
 task BaseRecalibrator {
   input {
     File input_bam
+    File input_bam_index
     String recalibration_report_filename
     Array[String] sequence_group_interval
     File dbsnp_vcf
@@ -253,7 +254,7 @@ task BaseRecalibrator {
     File ref_fasta_index
     Int bqsr_scatter
     Int preemptible_tries
-    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.0.10.1"
+    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.8.0"
   }
 
   Float ref_size = size(ref_fasta, "GiB") + size(ref_fasta_index, "GiB") + size(ref_dict, "GiB")
@@ -283,6 +284,7 @@ task BaseRecalibrator {
     docker: gatk_docker
     preemptible: preemptible_tries
     memory: "6 GiB"
+    bootDiskSizeGb: 15
     disks: "local-disk " + disk_size + " HDD"
   }
   output {
@@ -294,6 +296,7 @@ task BaseRecalibrator {
 task ApplyBQSR {
   input {
     File input_bam
+    File input_bam_index
     String output_bam_basename
     File recalibration_report
     Array[String] sequence_group_interval
@@ -303,7 +306,7 @@ task ApplyBQSR {
     Int compression_level
     Int bqsr_scatter
     Int preemptible_tries
-    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.0.10.1"
+    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.8.0"
     Int memory_multiplier = 1
     Int additional_disk = 20
     Boolean bin_base_qualities = true
@@ -346,6 +349,7 @@ task ApplyBQSR {
     docker: gatk_docker
     preemptible: preemptible_tries
     memory: "~{memory_size} MiB"
+    bootDiskSizeGb: 15
     disks: "local-disk " + disk_size + " HDD"
   }
   output {
@@ -360,7 +364,7 @@ task GatherBqsrReports {
     Array[File] input_bqsr_reports
     String output_report_filename
     Int preemptible_tries
-    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.0.10.1"
+    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.8.0"
   }
 
   command {
@@ -373,6 +377,7 @@ task GatherBqsrReports {
     docker: gatk_docker
     preemptible: preemptible_tries
     memory: "3500 MiB"
+    bootDiskSizeGb: 15
     disks: "local-disk 20 HDD"
   }
   output {
@@ -394,7 +399,7 @@ task GatherSortedBamFiles {
   Int disk_size = ceil(2 * total_input_size) + 20
 
   command {
-    java -Dsamjdk.compression_level=~{compression_level} -Xms2000m -jar /usr/gitc/picard.jar \
+    java -Dsamjdk.compression_level=~{compression_level} -Xms2000m -jar /usr/picard/picard.jar \
       GatherBamFiles \
       INPUT=~{sep=' INPUT=' input_bams} \
       OUTPUT=~{output_bam_basename}.bam \
@@ -402,7 +407,7 @@ task GatherSortedBamFiles {
       CREATE_MD5_FILE=true
     }
   runtime {
-    docker: "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.3-1564508330"
+    docker: "us.gcr.io/broad-gotc-prod/picard-cloud:2.23.8"
     preemptible: preemptible_tries
     memory: "3 GiB"
     disks: "local-disk " + disk_size + " HDD"
@@ -429,7 +434,7 @@ task GatherUnsortedBamFiles {
   Int disk_size = ceil(2 * total_input_size) + 20
 
   command {
-    java -Dsamjdk.compression_level=~{compression_level} -Xms2000m -jar /usr/gitc/picard.jar \
+    java -Dsamjdk.compression_level=~{compression_level} -Xms2000m -jar /usr/picard/picard.jar \
       GatherBamFiles \
       INPUT=~{sep=' INPUT=' input_bams} \
       OUTPUT=~{output_bam_basename}.bam \
@@ -437,7 +442,7 @@ task GatherUnsortedBamFiles {
       CREATE_MD5_FILE=false
     }
   runtime {
-    docker: "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.3-1564508330"
+    docker: "us.gcr.io/broad-gotc-prod/picard-cloud:2.23.8"
     preemptible: preemptible_tries
     memory: "3 GiB"
     disks: "local-disk " + disk_size + " HDD"

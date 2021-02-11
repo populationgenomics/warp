@@ -183,7 +183,8 @@ class ConfigParser
         .required()
         .action { (env, config) =>
           config.copy(
-            annotationFiltrationConfig = config.annotationFiltrationConfig.copy(env = env)
+            annotationFiltrationConfig =
+              config.annotationFiltrationConfig.copy(env = env)
           )
         }
     )
@@ -350,77 +351,6 @@ class ConfigParser
           config.copy(
             illuminaGenotypingArrayConfig = config.illuminaGenotypingArrayConfig
               .copy(papiVersion = papiVersion)
-          )
-        }
-    )
-
-  note("")
-  cmd(ArraysDataDelivery.entryName)
-    .text("Test the Arrays Data Delivery workflow")
-    .action(
-      (_, config) =>
-        config.copy(
-          test = ArraysDataDelivery
-      )
-    )
-    .children(
-      opt[Unit]("leave-workspace")
-        .text("Leave the workspace in firecloud for manual verification")
-        .optional()
-        .action { (_, config) =>
-          config.copy(
-            arraysDataDeliveryConfig =
-              config.arraysDataDeliveryConfig.copy(leaveWorkspace = true)
-          )
-        }
-    )
-
-  note("")
-  cmd(CramDataDelivery.entryName)
-    .text("Test the Cram data-delivery workflow")
-    .action(
-      (_, config) => config.copy(test = CramDataDelivery)
-    )
-    .children(
-      opt[DataType]('d', "data-type")
-        .text(
-          s"Data type to test delivery of ${DataType.values.mkString("[", ", ", "]")}"
-        )
-        .optional()
-        .action { (dataType, config) =>
-          config.copy(
-            cramDataDeliveryConfig =
-              config.cramDataDeliveryConfig.copy(dataType = dataType)
-          )
-        },
-      opt[String]('r', "requester")
-        .text(
-          "Email address of the requester so that they can access a workspace created with the --leave-workspace option"
-        )
-        .optional()
-        .action { (requester, config) =>
-          config.copy(
-            cramDataDeliveryConfig =
-              config.cramDataDeliveryConfig.copy(requester = requester)
-          )
-        },
-      opt[CromwellEnvironment]('e', "env")
-        .text(
-          s"The environment that this should run in ${CromwellEnvironment.optionsString}"
-        )
-        .required()
-        .action { (env, config) =>
-          config.copy(
-            validateChipConfig = config.validateChipConfig.copy(env = env)
-          )
-        },
-      opt[Unit]("leave-workspace")
-        .text("Leave the workspace in firecloud for manual verification")
-        .optional()
-        .action { (_, config) =>
-          config.copy(
-            cramDataDeliveryConfig =
-              config.cramDataDeliveryConfig.copy(leaveWorkspace = true)
           )
         }
     )
@@ -609,7 +539,6 @@ class ConfigParser
           )
         }
     )
-
   note("")
   cmd(SomaticSingleSample.entryName)
     .text("Test the SomaticSingleSample workflow")
@@ -701,4 +630,184 @@ class ConfigParser
           )
         }
     )
+
+  note("")
+  cmd(CramToUnmappedBams.entryName)
+    .text("Test the CramToUnmappedBams workflow")
+    .action(
+      (_, config) =>
+        config.copy(
+          test = CramToUnmappedBams
+      )
+    )
+    .children(
+      opt[WorkflowTestCategory]('t', "test")
+        .text("The type of test to run")
+        .required()
+        .action { (test, config) =>
+          config.copy(
+            cramToUnmappedBamsConfig =
+              config.cramToUnmappedBamsConfig.copy(category = test)
+          )
+        },
+      opt[String]('b', "branch")
+        .text("The branch of truth data to test against (Defaults to develop)")
+        .optional()
+        .action { (branch, config) =>
+          config.copy(
+            cramToUnmappedBamsConfig =
+              config.cramToUnmappedBamsConfig.copy(truthBranch = branch)
+          )
+        },
+      opt[CromwellEnvironment]('e', "env")
+        .text(
+          s"The environment that this should run in ${CromwellEnvironment.optionsString}"
+        )
+        .required()
+        .action { (env, config) =>
+          config.copy(
+            cramToUnmappedBamsConfig =
+              config.cramToUnmappedBamsConfig.copy(env = env)
+          )
+        },
+      opt[Unit]("update-truth")
+        .text(
+          "Update the truth data with the results of this run."
+        )
+        .optional()
+        .action { (_, config) =>
+          config.copy(
+            cramToUnmappedBamsConfig =
+              config.cramToUnmappedBamsConfig.copy(updateTruth = true)
+          )
+        },
+      opt[String]("use-timestamp")
+        .text(
+          "Do not run the workflows. Instead, just use a previous runs timestamp (yyyy-MM-dd-HH-mm-ss)"
+        )
+        .optional()
+        .action { (timestamp, config) =>
+          config.copy(
+            cramToUnmappedBamsConfig = config.cramToUnmappedBamsConfig
+              .copy(useTimestamp = Option(timestamp))
+          )
+        },
+      opt[Unit]('u', "uncached")
+        .text("Disable call-caching for the main workflow run")
+        .optional()
+        .action { (_, config) =>
+          config.copy(
+            cramToUnmappedBamsConfig =
+              config.cramToUnmappedBamsConfig.copy(useCallCaching = false)
+          )
+        },
+      opt[PapiVersion]("papi-version")
+        .text("The version of Pipelines API to use")
+        .optional()
+        .action { (papiVersion, config) =>
+          config.copy(
+            cramToUnmappedBamsConfig =
+              config.cramToUnmappedBamsConfig.copy(papiVersion = papiVersion)
+          )
+        }
+    )
+      
+  note("")
+  cmd(GDCWholeGenomeSomaticSingleSample.entryName)
+    .text("Test the GDCWholeGenomeSomaticSingleSample workflow")
+    .action(
+      (_, config) =>
+        config.copy(
+          test = GDCWholeGenomeSomaticSingleSample
+      )
+    )
+    .children(
+      opt[WorkflowTestCategory]('t', "test")
+        .text("The type of test to run")
+        .required()
+        .action { (test, config) =>
+          config.copy(
+            gdcWholeGenomeSomaticSingleSampleConfig =
+              config.gdcWholeGenomeSomaticSingleSampleConfig.copy(
+                category = test)
+          )
+        },
+      opt[DataType]('d', "data-type")
+        .text(
+          s"The data type to test ${DataType.values.mkString("[", ",", "]")}")
+        .required()
+        .action { (dataType, config) =>
+          config.copy(
+            gdcWholeGenomeSomaticSingleSampleConfig =
+              config.gdcWholeGenomeSomaticSingleSampleConfig.copy(
+                dataType = dataType
+              )
+          )
+        },
+      opt[String]('b', "branch")
+        .text("The branch of truth data to test against (Defaults to develop)")
+        .optional()
+        .action { (branch, config) =>
+          config.copy(
+            gdcWholeGenomeSomaticSingleSampleConfig =
+              config.gdcWholeGenomeSomaticSingleSampleConfig.copy(
+                truthBranch = branch)
+          )
+        },
+      opt[CromwellEnvironment]('e', "env")
+        .text(
+          s"The environment that this should run in ${CromwellEnvironment.optionsString}"
+        )
+        .required()
+        .action { (env, config) =>
+          config.copy(
+            gdcWholeGenomeSomaticSingleSampleConfig =
+              config.gdcWholeGenomeSomaticSingleSampleConfig.copy(env = env)
+          )
+        },
+      opt[Unit]("update-truth")
+        .text(
+          "Update the truth data with the results of this run."
+        )
+        .optional()
+        .action { (_, config) =>
+          config.copy(
+            gdcWholeGenomeSomaticSingleSampleConfig =
+              config.gdcWholeGenomeSomaticSingleSampleConfig.copy(
+                updateTruth = true)
+          )
+        },
+      opt[String]("use-timestamp")
+        .text(
+          "Do not run the workflows. Instead, just use a previous runs timestamp (yyyy-MM-dd-HH-mm-ss)"
+        )
+        .optional()
+        .action { (timestamp, config) =>
+          config.copy(
+            gdcWholeGenomeSomaticSingleSampleConfig =
+              config.gdcWholeGenomeSomaticSingleSampleConfig
+                .copy(useTimestamp = Option(timestamp))
+          )
+        },
+      opt[Unit]('u', "uncached")
+        .text("Disable call-caching for the main workflow run")
+        .optional()
+        .action { (_, config) =>
+          config.copy(
+            gdcWholeGenomeSomaticSingleSampleConfig =
+              config.gdcWholeGenomeSomaticSingleSampleConfig.copy(
+                useCallCaching = false)
+          )
+        },
+      opt[PapiVersion]("papi-version")
+        .text("The version of Pipelines API to use")
+        .optional()
+        .action { (papiVersion, config) =>
+          config.copy(
+            gdcWholeGenomeSomaticSingleSampleConfig =
+              config.gdcWholeGenomeSomaticSingleSampleConfig.copy(
+                papiVersion = papiVersion)
+          )
+        }
+    )    
 }

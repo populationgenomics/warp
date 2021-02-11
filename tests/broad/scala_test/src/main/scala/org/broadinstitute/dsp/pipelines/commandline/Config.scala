@@ -7,11 +7,12 @@ case class Config(
     annotationFiltrationConfig: AnnotationFiltrationConfig =
       AnnotationFiltrationConfig(),
     arraysConfig: ArraysConfig = ArraysConfig(),
-    arraysDataDeliveryConfig: ArraysDataDeliveryConfig =
-      ArraysDataDeliveryConfig(),
-    cramDataDeliveryConfig: CramDataDeliveryConfig = CramDataDeliveryConfig(),
+    cramToUnmappedBamsConfig: CramToUnmappedBamsConfig =
+      CramToUnmappedBamsConfig(),
     genotypeConcordanceConfig: GenotypeConcordanceConfig =
       GenotypeConcordanceConfig(),
+    gdcWholeGenomeSomaticSingleSampleConfig: GDCWholeGenomeSomaticSingleSampleConfig =
+      GDCWholeGenomeSomaticSingleSampleConfig(),
     germlineCloudConfig: GermlineCloudWorkflowConfig =
       GermlineCloudWorkflowConfig(),
     illuminaGenotypingArrayConfig: IlluminaGenotypingArrayConfig =
