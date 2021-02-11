@@ -114,8 +114,8 @@ workflow WGSFromBam {
     File? gvcf_summary_metrics = WGSFromFastq.gvcf_summary_metrics
     File? gvcf_detail_metrics = WGSFromFastq.gvcf_detail_metrics
 
-    File? output_bam = WGSFromFastq.provided_output_bam
-    File? output_bam_index = WGSFromFastq.provided_output_bam_index
+    File? output_bam = WGSFromFastq.output_bam
+    File? output_bam_index = WGSFromFastq.output_bam_index
 
     File? output_cram = WGSFromFastq.output_cram
     File? output_cram_index = WGSFromFastq.output_cram_index
