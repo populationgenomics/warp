@@ -147,7 +147,7 @@ workflow WGSFromFastq {
       haplotype_scatter_count = scatter_settings.haplotype_scatter_count,
       break_bands_at_multiples_of = scatter_settings.break_bands_at_multiples_of,
       input_bam = mapped_bam,
-      input_bai = mapped_index,
+      input_bam_index = mapped_index,
       ref_fasta = references.reference_fasta.ref_fasta,
       ref_fasta_index = references.reference_fasta.ref_fasta_index,
       ref_dict = references.reference_fasta.ref_dict,
