@@ -1,3 +1,13 @@
+# 1.5.1
+2020-12-16
+
+Modified JointGenotyping 'GatherTranches' task to fix validation error reported by miniwdl (duplicately named input and output)
+
+# 1.5.0
+2020-10-20
+
+Updated the sample map for WGS JointGenotyping to one with new samples. Turned on validation of NA12878 for both Exome and WGS JointGenotyping.
+
 # 1.4.0
 2020-09-25
 

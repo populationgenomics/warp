@@ -39,7 +39,8 @@ import "../../../../../../structs/dna_seq/DNASeqStructs.wdl"
 # WORKFLOW DEFINITION
 workflow ExomeFromFastq {
 
-  String pipeline_version = "2.1.0"
+
+  String pipeline_version = "2.4.1"
 
   input {
     SampleAndFastqs sample_and_fastqs

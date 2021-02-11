@@ -1,3 +1,27 @@
+# 2.4.1
+2020-12-21
+
+* Passed an input bam index to several subworkflows, so the pipeline passes on singularity for sharded BQSR
+
+# 2.4.0
+2021-01-06
+
+* Change bait_set_name to type String, so its type is consistent with its subworkflow and plumbing inputs json
+
+# 2.3.0
+2020-12-16
+
+* Fixed error in relative import statement in Alignment subworkflow.
+* Fixed syntax bug in Alignment task SamToFastqAndBwaMemAndMba
+
+# 2.2.0
+2020-10-20
+
+* Updated GATK docker image for all tasks to [GATK 4.1.8.0](https://github.com/broadinstitute/gatk/releases/tag/4.1.8.0).
+    * Numerous bug fixes and improvements
+* Updated Picard docker image for all tasks to [2.23.8](https://github.com/broadinstitute/picard/releases/tag/2.23.8).
+* Updated samtools to version [1.11](https://github.com/samtools/samtools/releases/tag/1.11).  Primarily for improved compression of cram files.
+
 # 2.1.0
 2020-08-18
 

@@ -1,15 +1,40 @@
+# 4.2.2
+
+2021-01-04 (Date of Last Commit)
+
+* Added an optional input for the pipeline to read in stranded mode which has a default of false
+
+# 4.2.1
+
+2020-12-04 (Date of Last Commit)
+
+* Updated the docker in LoomUtils.wdl task to 0.0.6
+
+# 4.2.0
+
+2020-12-04 (Date of Last Commit)
+
+* Added "Gene" as row attribute in the loom file duplicating "gene_names" to make the output loom compatible with scanpy 
+* Added "CellID" (duplicate of ""cell_names") and "input_id" as column attributes in the loom file to make the output loom compatible with scanpy and Cumulus
+* Updated the docker in LoomUtils.wdl task to 0.0.5 to incorporate the above changes
+
+# 4.1.8
+
+2020-11-24 (Date of Last Commit)
+
+* Made CPU, memory, and disk optional parameters for all tasks
+
 # 4.1.7
 
 2020-11-05 (Date of Last Commit)
 
-* Pushed input checking code down into HISAT tasks in order to reduce number of DRS lookups.
-* Increased memory and disk on several tasks.
+* Increased memory and disk on several tasks
 
 # 4.1.6
 
 2020-11-03 (Date of Last Commit)
 
-* Updated the docker for FastqProcessing task to version v0.3.12. This version of FastqProcessing solves 32 bit unsigned integer overflow error for large files and also disables checking of EOF magic string in BGZF files to accomodate fastq.gz file without this magic string. 
+* Updated the docker for FastqProcessing task to version v0.3.12. This version of FastqProcessing solves 32 bit unsigned integer overflow error for large files and also disables checking of EOF magic string in BGZF files to accomodate fastq.gz file without this magic string 
 
 # 4.1.5
 
