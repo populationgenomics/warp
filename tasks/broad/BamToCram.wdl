@@ -10,7 +10,7 @@ workflow BamToCram {
     File ref_fasta
     File ref_fasta_index
     File ref_dict
-    File duplication_metrics
+    File? duplication_metrics
     File chimerism_metrics
     String base_file_name
     Int agg_preemptible_tries
@@ -32,15 +32,17 @@ workflow BamToCram {
       preemptible_tries = agg_preemptible_tries
   }
 
-  # Check whether the data has massively high duplication or chimerism rates
-  call QC.CheckPreValidation as CheckPreValidation {
-    input:
-      duplication_metrics = duplication_metrics,
-      chimerism_metrics = chimerism_metrics,
-      max_duplication_in_reasonable_sample = max_duplication_in_reasonable_sample,
-      max_chimerism_in_reasonable_sample = max_chimerism_in_reasonable_sample,
-      preemptible_tries = agg_preemptible_tries
- }
+  if (defined(duplication_metrics)) {
+      # Check whether the data has massively high duplication or chimerism rates
+      call QC.CheckPreValidation as CheckPreValidation {
+        input:
+          duplication_metrics = select_first([duplication_metrics]),
+          chimerism_metrics = chimerism_metrics,
+          max_duplication_in_reasonable_sample = max_duplication_in_reasonable_sample,
+          max_chimerism_in_reasonable_sample = max_chimerism_in_reasonable_sample,
+          preemptible_tries = agg_preemptible_tries
+     }
+  }
 
   # Validate the CRAM file
   call QC.ValidateSamFile as ValidateCram {
@@ -61,7 +63,7 @@ workflow BamToCram {
      File output_cram = ConvertToCram.output_cram
      File output_cram_index = ConvertToCram.output_cram_index
      File output_cram_md5 = ConvertToCram.output_cram_md5
-     File validate_cram_file_report = ValidateCram.report
+     File? validate_cram_file_report = ValidateCram.report
   }
   meta {
     allowNestedInputs: true
