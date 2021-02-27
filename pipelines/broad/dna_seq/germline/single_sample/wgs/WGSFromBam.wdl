@@ -17,9 +17,6 @@ workflow WGSFromBam {
     String base_file_name
     String final_gvcf_base_name
 
-    File? cram_ref_fasta
-    File? cram_ref_fasta_index
-
     DNASeqSingleSampleReferences references
     VariantCallingScatterSettings scatter_settings
     PapiSettings papi_settings
@@ -47,7 +44,9 @@ workflow WGSFromBam {
       input_bam = select_first([input_bam, input_cram]),
       output_bam_basename = base_file_name + ".sorted",
       compression_level = compression_level,
-      preemptible_tries = if input_too_large_for_preemptibles_1 then 0 else papi_settings.agg_preemptible_tries
+      preemptible_tries = if input_too_large_for_preemptibles_1 then 0 else papi_settings.agg_preemptible_tries,
+      ref_fasta = references.reference_fasta.ref_fasta,
+      ref_fasta_index = references.reference_fasta.ref_fasta_index,
   }
 
   call BamToFastq {
@@ -137,10 +136,14 @@ task BamToFastq {
     File input_bam
     String output_fq_basename
     Int disk_size
+    File? ref_fasta
+    File? ref_fasta_index
   }
-
+  
+  String ref_arg = if defined(ref_fasta) then "--reference ~{ref_fasta}" else ""
   command <<<
     samtools fastq ~{input_bam} \
+    ~{ref_arg} \
     -1 ~{output_fq_basename}.1.fq \
     -2 ~{output_fq_basename}.2.fq \
     -0 /dev/null -s /dev/null
