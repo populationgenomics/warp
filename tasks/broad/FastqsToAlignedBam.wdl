@@ -52,7 +52,7 @@ workflow FastqsToAlignedBam {
 
   String sample_name = sample_and_fastqs.sample_name
   String rg_line = "@RG\\tID:" + sample_name + "\\tSM:" + sample_name
-  String bwa_commandline = "bwa mem -K 100000000 -p -v 3 -t 16 -Y -R '" + rg_line + "' $bash_ref_fasta "
+  String bwa_commandline = "bwa mem -K 100000000 -v 3 -t 16 -Y -R '" + rg_line + "' $bash_ref_fasta "
 
   Int compression_level = 2
 
