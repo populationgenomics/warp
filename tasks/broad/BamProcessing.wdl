@@ -56,6 +56,8 @@ task SortSam {
 task SortSamByName {
   input {
     File input_bam
+    File ref_fasta
+    File ref_fasta_index
     String output_bam_basename
     Int preemptible_tries = 1
     Int compression_level = 2
@@ -64,7 +66,7 @@ task SortSamByName {
   # more disk space.  Also it spills to disk in an uncompressed format so we need to account for that with a larger multiplier
   Float sort_sam_disk_multiplier = 6
   Int disk_size = ceil(sort_sam_disk_multiplier * size(input_bam, "GiB")) + 20
-
+  
   command {
     java -Dsamjdk.compression_level=~{compression_level} -Xms4000m -jar /usr/gitc/picard.jar \
       SortSam \
@@ -72,7 +74,8 @@ task SortSamByName {
       OUTPUT=~{output_bam_basename}.bam \
       SORT_ORDER=queryname \
       MAX_RECORDS_IN_RAM=300000 \
-      VALIDATION_STRINGENCY=SILENT
+      VALIDATION_STRINGENCY=SILENT \
+      REFERENCE_SEQUENCE=~{ref_fasta}
   }
   runtime {
     docker: "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.3-1564508330"
@@ -105,7 +108,7 @@ task SortSamSpark {
 
     gatk --java-options "-Dsamjdk.compression_level=~{compression_level} -Xms100g -Xmx100g" \
       SortSamSpark \
-      -I ~{input_bam} \
+      -I ~{input_bam} \ 
       -O ~{output_bam_basename}.bam \
       -- --conf spark.local.dir=. --spark-master 'local[16]' --conf 'spark.kryo.referenceTracking=false'
 
