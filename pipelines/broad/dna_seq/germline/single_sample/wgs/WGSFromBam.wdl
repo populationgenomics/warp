@@ -53,7 +53,7 @@ workflow WGSFromBam {
     input:
       input_bam = SortSamByName.output_bam,
       output_fq_basename = base_file_name,
-      disk_size = ceil(input_size * 6) + 20
+      disk_size = ceil(size(SortSamByName.output_bam, "GiB") * 6) + 20
   }
 
   SampleAndFastqs sample_and_fastqs = object {
@@ -143,9 +143,11 @@ task BamToFastq {
   String ref_arg = if defined(ref_fasta) then "--reference ~{ref_fasta}" else ""
   command <<<
     samtools fastq ~{input_bam} \
-    ~{ref_arg} \
     -1 ~{output_fq_basename}.1.fq \
     -2 ~{output_fq_basename}.2.fq \
+    ~{ref_arg} \
+    -1 ~{output_fq_basename}_R1.fastq.gz \
+    -2 ~{output_fq_basename}_R2.fastq.gz \
     -0 /dev/null -s /dev/null
   >>>
 
@@ -157,7 +159,7 @@ task BamToFastq {
   }
 
   output {
-    File output_fq1 = output_fq_basename + '.1.fq'
-    File output_fq2 = output_fq_basename + '.2.fq'
+    File output_fq1 = "~{output_fq_basename}_R1.fastq.gz"
+    File output_fq2 = "~{output_fq_basename}_R2.fastq.gz"
   }
 }

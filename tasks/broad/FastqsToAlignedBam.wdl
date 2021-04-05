@@ -59,7 +59,7 @@ workflow FastqsToAlignedBam {
   # Get the size of the standard reference files as well as the additional reference files needed for BWA
 
   scatter (fastq_pair in sample_and_fastqs.fastqs) {
-    String input_basename = basename(fastq_pair[0], '_1.fastq.gz')
+    String input_basename = basename(fastq_pair[0], '_R1.fastq.gz')
     Float fastq_size = size(fastq_pair[0], "GiB") + size(fastq_pair[1], "GiB")
 
     call Alignment.SamToFastqAndBwaMemAndMba as SamToFastqAndBwaMemAndMba {
