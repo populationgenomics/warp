@@ -50,7 +50,7 @@ workflow WGSFromFastq {
     File wgs_coverage_interval_list
 
     Boolean provide_bam_output = false
-    Boolean use_gatk3_haplotype_caller = true
+    Boolean use_gatk3_haplotype_caller = false
     Boolean validate_gvcf = true
   }
 
