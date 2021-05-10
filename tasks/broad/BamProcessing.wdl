@@ -60,7 +60,7 @@ task SortSamByName {
     File ref_fasta_index
     String output_bam_basename
     Int preemptible_tries = 1
-    Int compression_level = 2
+    Int compression_level = 1
   }
   # SortSam spills to disk a lot more because we are only store 300000 records in RAM now because its faster for our data so it needs
   # more disk space.  Also it spills to disk in an uncompressed format so we need to account for that with a larger multiplier
@@ -86,6 +86,50 @@ task SortSamByName {
   }
   output {
     File output_bam = "~{output_bam_basename}.bam"
+  }
+}
+
+task SortSamByNameSamtools {
+  input {
+      File input_bam
+      File ref_fasta
+      File ref_fasta_index
+      String output_bam_basename
+      Int preemptible_tries = 1
+      Int compression_level = 1
+
+      Int memoryPerThreadGb = 10
+      Int threads = 1
+      Int memoryGb = 5 + threads * memoryPerThreadGb
+      String dockerImage = "quay.io/biocontainers/samtools:1.11--h6270b1f_0"
+  }
+  
+  Float sort_sam_disk_multiplier = 6
+  Int disk_size = ceil(sort_sam_disk_multiplier * size(input_bam, "GiB")) + 20
+  String output_bam_name = output_bam_basename + ".bam"
+
+  command {
+      set -e
+      samtools sort \
+      --reference ~{ref_fasta} \
+      -l ~{compression_level} \
+      -n \
+      ~{"--threads " + threads} \
+      -m ~{memoryPerThreadGb}G \
+      -o ~{output_bam_name} \
+      ~{input_bam}
+  }
+
+  output {
+      File output_bam = "~{output_bam_basename}.bam"
+  }
+
+  runtime {
+      docker: dockerImage
+      disks: "local-disk " + disk_size + " HDD"
+      cpu: threads
+      memory: "~{memoryGb}G"
+      preemptible: preemptible_tries
   }
 }
 

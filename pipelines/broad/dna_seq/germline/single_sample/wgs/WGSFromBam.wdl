@@ -39,7 +39,7 @@ workflow WGSFromBam {
   Float gb_size_cutoff_for_preemptibles = 110.0
   Boolean input_too_large_for_preemptibles_1 = input_size > gb_size_cutoff_for_preemptibles
 
-  call Processing.SortSamByName {
+  call Processing.SortSamByNameSamtools as SortSamByName {
     input:
       input_bam = select_first([input_bam, input_cram]),
       output_bam_basename = base_file_name + ".sorted",
@@ -47,13 +47,14 @@ workflow WGSFromBam {
       preemptible_tries = if input_too_large_for_preemptibles_1 then 0 else papi_settings.agg_preemptible_tries,
       ref_fasta = references.reference_fasta.ref_fasta,
       ref_fasta_index = references.reference_fasta.ref_fasta_index,
+      threads = 10
   }
 
   call BamToFastq {
     input:
       input_bam = SortSamByName.output_bam,
       output_fq_basename = base_file_name,
-      disk_size = ceil(size(SortSamByName.output_bam, "GiB") * 6) + 20
+      threads = 10
   }
 
   SampleAndFastqs sample_and_fastqs = object {
@@ -135,12 +136,14 @@ task BamToFastq {
   input {
     File input_bam
     String output_fq_basename
-    Int disk_size
     File? ref_fasta
     File? ref_fasta_index
+    Int threads = 1
   }
   
   String ref_arg = if defined(ref_fasta) then "--reference ~{ref_fasta}" else ""
+  Int disk_size = ceil(size(input_bam, "GiB") * 6) + 20
+  
   command <<<
     samtools fastq ~{input_bam} \
     -1 ~{output_fq_basename}.1.fq \
@@ -152,6 +155,7 @@ task BamToFastq {
   >>>
 
   runtime {
+    cpu: threads
     docker: "biocontainers/samtools:1.3.1"
     disks: "local-disk " + disk_size + " HDD"
     memory: "4 GiB"
