@@ -48,7 +48,8 @@ workflow ExomeFromBam {
       input_bam = select_first([input_bam, input_cram]),
       output_bam_basename = base_file_name + ".sorted",
       compression_level = compression_level,
-      preemptible_tries = if input_too_large_for_preemptibles_1 then 0 else papi_settings.agg_preemptible_tries
+      preemptible_tries = if input_too_large_for_preemptibles_1 then 0 else papi_settings.agg_preemptible_tries,
+      ref_fasta = cram_ref_fasta,
   }
 
   call BamToFastq {
