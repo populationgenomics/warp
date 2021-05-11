@@ -587,7 +587,7 @@ task ValidateVCF {
     File calling_interval_list
     Int preemptible_tries
     Boolean is_gvcf = true
-    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.8.0"
+    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.4.0"
   }
 
   Float ref_size = size(ref_fasta, "GiB") + size(ref_fasta_index, "GiB") + size(ref_dict, "GiB")

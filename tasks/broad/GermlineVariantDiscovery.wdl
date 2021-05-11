@@ -92,7 +92,7 @@ task HaplotypeCaller_GATK4_VCF {
     Boolean make_bamout
     Int preemptible_tries
     Int hc_scatter
-    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.8.0"
+    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.4.0"
   }
 
   String output_suffix = if make_gvcf then ".g.vcf.gz" else ".vcf.gz"
@@ -181,7 +181,7 @@ task HardFilterVcf {
     String vcf_basename
     File interval_list
     Int preemptible_tries
-    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.8.0"
+    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.4.0"
   }
 
   Int disk_size = ceil(2 * size(input_vcf, "GiB")) + 20
@@ -220,7 +220,7 @@ task CNNScoreVariants {
     File ref_fasta_index
     File ref_dict
     Int preemptible_tries
-    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.8.0"
+    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.4.0"
   }
 
   Int disk_size = ceil(size(bamout, "GiB") + size(ref_fasta, "GiB") + (size(input_vcf, "GiB") * 2))
@@ -277,7 +277,7 @@ task FilterVariantTranches {
     File dbsnp_resource_vcf_index
     String info_key
     Int preemptible_tries
-    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.8.0"
+    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.4.0"
   }
 
   Int disk_size = ceil(size(hapmap_resource_vcf, "GiB") +
