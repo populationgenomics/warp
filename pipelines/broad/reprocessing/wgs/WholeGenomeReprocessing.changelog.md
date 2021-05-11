@@ -1,3 +1,18 @@
+# 2.3.5
+2021-03-17
+
+* Promoted VariantCalling to be a top-level workflow
+
+# 2.3.4
+2021-02-22
+
+* Added SORTING_COLLECTION_SIZE_RATIO as an optional task input to MarkDuplicates
+
+# 2.3.3
+2021-02-08
+
+* Calculate java memory value from the optional memory input value for CramToUnmappedBams java tasks
+
 # 2.3.2
 2021-02-02
 

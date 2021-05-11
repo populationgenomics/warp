@@ -25,7 +25,6 @@ input {
     File base_recalibrated_bam_index
     String base_name
     String sample_name
-    String recalibrated_bam_base_name
     File haplotype_database_file
     DNASeqSingleSampleReferences references
     PapiSettings papi_settings
@@ -77,7 +76,7 @@ input {
     input:
       input_bam = base_recalibrated_bam,
       input_bam_index = base_recalibrated_bam_index,
-      read_group_md5_filename = recalibrated_bam_base_name + ".bam.read_group_md5",
+      read_group_md5_filename = base_name + ".bam.read_group_md5",
       preemptible_tries = papi_settings.agg_preemptible_tries
   }
 

@@ -7,57 +7,89 @@ version 1.0
 # If the output_map file is provided, it is expected to be a tab-separated file containing a list of all the read group ids
 # found in the input_cram / input_bam and the desired name of the unmapped bams generated for each.
 # If the file is not provided, the output names of the unmapped bams will be the read_group_id<unmapped_bam_suffix>
-workflow BamToFastq {
+workflow CramToUnmappedBams {
 
-  String pipeline_version = "1.0.0"
+  String pipeline_version = "1.0.1"
 
   input {
     File? input_cram
     File? input_bam
     File? ref_fasta
     File? ref_fasta_index
+    String base_file_name
+    String unmapped_bam_suffix = ".unmapped.bam"
     Int additional_disk = 20
   }
 
-  File input_file = input_bam
+  if (defined(input_cram)) {
+    Float cram_size = size(input_cram, "GiB")
+    String bam_from_cram_name = basename(input_cram_path, ".cram")
+    String input_cram_path = select_first([input_cram])
+
+    call CramToBam {
+      input:
+        ref_fasta = select_first([ref_fasta]),
+        ref_fasta_index = select_first([ref_fasta_index]),
+        cram_file = select_first([input_cram]),
+        output_basename = bam_from_cram_name,
+        disk_size = ceil(cram_size * 6) + additional_disk
+    }
+  }
+
+  File input_file = select_first([CramToBam.output_bam, input_bam])
   Float input_size = size(input_file, "GiB")
 
-  String output_fq_basename = basename(input_file, ".bam")
+  call GenerateOutputMap {
+    input:
+      input_bam = input_file,
+      unmapped_bam_suffix = unmapped_bam_suffix,
+      disk_size = ceil(input_size) + additional_disk
+  }
+
+  call SplitUpOutputMapFile {
+    input:
+      read_group_map_file = GenerateOutputMap.output_map
+  }
+
+  scatter (rg_map_file in SplitUpOutputMapFile.rg_to_ubam_file) {
+    call SplitOutUbamByReadGroup {
+      input:
+        input_bam = input_file,
+        rg_to_ubam_file = rg_map_file,
+        disk_size = ceil(input_size * 2) + additional_disk
+    }
+
+    String unmapped_bam_filename = basename(SplitOutUbamByReadGroup.output_bam)
+
+    call RevertSam {
+      input:
+        input_bam = SplitOutUbamByReadGroup.output_bam,
+        output_bam_filename = unmapped_bam_filename,
+        disk_size = ceil(input_size * 3) + additional_disk
+    }
+
+    call SortSam {
+      input:
+        input_bam = RevertSam.output_bam,
+        output_bam_filename = unmapped_bam_filename
+    }
+
+    Float unmapped_bam_size = size(SortSam.output_bam, "GiB")
+
+    call ValidateSamFile {
+      input:
+        input_bam = SortSam.output_bam,
+        report_filename = unmapped_bam_filename + ".validation_report",
+        disk_size = ceil(unmapped_bam_size) + additional_disk
+    }
+  }
 
   output {
-    File unmapped_bam = SortSam.output_bam
+    Array[File] validation_report = ValidateSamFile.report
+    Array[File] unmapped_bams = SortSam.output_bam
   }
   meta {
     allowNestedInputs: true
-  }
-}
-
-task SubsetBam {
-  input {
-    File bam
-    String output_base_name
-  }
-
-  Int disk_size = ceil(size(bam, "GiB")) + 10
-
-  command {
-    samtools index ~{bam}
-    samtools view ~{bam} 21 -Obam -o ~{output_base_name}.bam
-    samtools index ~{output_base_name}.bam
-    mv ~{output_base_name}.bam.bai ~{output_base_name}.bai
-  }
-
-  output {
-    File output_bam = "~{output_base_name}.bam"
-    File output_bam_index = "~{output_base_name}.bai"
-  }
-
-  runtime {
-    docker: "biocontainers/samtools:1.3.1"
-    memory: "4 GiB"
-    disks: "local-disk ~{disk_size} HDD"
-    preemptible: 3
-    cpu: 1
   }
 }
 
@@ -66,11 +98,13 @@ task RevertSam {
     File input_bam
     String output_bam_filename
     Int disk_size
-    Int memory = 3
+    Int memory_in_MiB = 3000
   }
 
+  Int java_mem = memory_in_MiB - 1000
+
   command <<<
-    java -Xms3500m -jar /usr/picard/picard.jar \
+    java -Xms~{java_mem}m -jar /usr/picard/picard.jar \
     RevertSam \
     --INPUT ~{input_bam} \
     --OUTPUT ~{output_bam_filename} \
@@ -87,7 +121,7 @@ task RevertSam {
   runtime {
     docker: "us.gcr.io/broad-gotc-prod/picard-cloud:2.23.8"
     disks: "local-disk " + disk_size + " HDD"
-    memory: "~{memory} GiB"
+    memory: "~{memory_in_MiB} MiB"
     preemptible: 3
   }
 
@@ -105,7 +139,7 @@ task CramToBam {
     File cram_file
     String output_basename
     Int disk_size
-    Int memory = 7
+    Int memory_in_MiB = 7000
   }
 
   command <<<
@@ -123,7 +157,7 @@ task CramToBam {
   runtime {
     docker: "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.7-1603303710"
     cpu: 3
-    memory: "~{memory} GiB"
+    memory: "~{memory_in_MiB} MiB"
     disks: "local-disk " + disk_size + " HDD"
     preemptible: 3
   }
@@ -139,7 +173,7 @@ task GenerateOutputMap {
     File input_bam
     String unmapped_bam_suffix
     Int disk_size
-    Int memory = 3
+    Int memory_in_MiB = 3000
   }
 
   command <<<
@@ -159,7 +193,7 @@ task GenerateOutputMap {
   runtime {
     docker: "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.7-1603303710"
     disks: "local-disk " + disk_size + " HDD"
-    memory: "~{memory} GiB"
+    memory: "~{memory_in_MiB} MiB"
     preemptible: 3
   }
 
@@ -172,7 +206,7 @@ task SplitUpOutputMapFile {
   input {
     File read_group_map_file
     Int disk_size = 10
-    Int memory = 3
+    Int memory_in_MiB = 3000
   }
 
   command <<<
@@ -186,7 +220,7 @@ task SplitUpOutputMapFile {
   runtime {
     docker: "gcr.io/gcp-runtimes/ubuntu_16_0_4:latest"
     disks: "local-disk " + disk_size + " HDD"
-    memory: "~{memory} GiB"
+    memory: "~{memory_in_MiB} MiB"
   }
 
   output {
@@ -200,7 +234,7 @@ task SplitOutUbamByReadGroup {
     File input_bam
     File rg_to_ubam_file
     Int disk_size
-    Int memory = 30
+    Int memory_in_MiB = 30000
   }
 
   Array[Array[String]] tmp = read_tsv(rg_to_ubam_file)
@@ -218,7 +252,7 @@ task SplitOutUbamByReadGroup {
     docker: "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.7-1603303710"
     cpu: 2
     disks: "local-disk " + disk_size + " HDD"
-    memory: "~{memory} GiB"
+    memory: "~{memory_in_MiB} MiB"
     preemptible: 3
   }
 }
@@ -228,12 +262,14 @@ task ValidateSamFile {
     File input_bam
     String report_filename
     Int disk_size
-    Int memory = 3
+    Int memory_in_MiB = 3000
   }
+
+  Int java_mem = memory_in_MiB - 1000
 
   command <<<
 
-    java -Xms3500m -jar /usr/picard/picard.jar \
+    java -Xms~{java_mem}m -jar /usr/picard/picard.jar \
       ValidateSamFile \
       --INPUT ~{input_bam} \
       --OUTPUT ~{report_filename} \
@@ -245,7 +281,7 @@ task ValidateSamFile {
   runtime {
     docker: "us.gcr.io/broad-gotc-prod/picard-cloud:2.23.8"
     disks: "local-disk " + disk_size + " HDD"
-    memory: "~{memory} GiB"
+    memory: "~{memory_in_MiB} MiB"
     preemptible: 3
   }
 
@@ -258,15 +294,16 @@ task SortSam {
   input {
     File input_bam
     String output_bam_filename
-    Int memory = 7
+    Int memory_in_MiB = 7000
     Float sort_sam_disk_multiplier = 6
   }
   # SortSam spills to disk a lot more because we are only store 300000 records in RAM now because its faster for our data so it needs
   # more disk space.  Also it spills to disk in an uncompressed format so we need to account for that with a larger multiplier
   Int disk_size = ceil(sort_sam_disk_multiplier * size(input_bam, "GiB")) + 20
+  Int java_mem = memory_in_MiB - 1000
 
   command <<<
-    java -Xms7g -jar /usr/picard/picard.jar \
+    java -Xms~{java_mem}m -jar /usr/picard/picard.jar \
     SortSam \
     --INPUT ~{input_bam} \
     --OUTPUT ~{output_bam_filename} \
@@ -278,7 +315,7 @@ task SortSam {
   runtime {
     docker: "us.gcr.io/broad-gotc-prod/picard-cloud:2.23.8"
     disks: "local-disk " + disk_size + " HDD"
-    memory: "~{memory} GiB"
+    memory: "~{memory_in_MiB} MiB"
     preemptible: 3
   }
 
