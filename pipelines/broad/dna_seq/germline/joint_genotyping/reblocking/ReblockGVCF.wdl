@@ -7,7 +7,7 @@ workflow ReblockGVCF {
   input {
     File gvcf
     File gvcf_index
-    String docker_image = "us.gcr.io/broad-gatk/gatk:4.1.8.0"
+    String docker_image = "us.gcr.io/broad-gatk/gatk:4.1.4.0"
   }
 
   String gvcf_basename = basename(gvcf, ".g.vcf.gz")
