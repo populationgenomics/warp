@@ -174,7 +174,7 @@ workflow UnmappedBamToAlignedBam {
     File? selfSM = CheckContamination.selfSM
     Float? contamination = CheckContamination.contamination
 
-    File duplicate_metrics = Bazam.duplicate_metrics
+    File duplicate_metrics = select_first(Bazam.duplicate_metrics)
 
     File output_bam = mapped_bam
     File output_bam_index = mapped_bam_index
