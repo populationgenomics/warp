@@ -17,7 +17,6 @@ workflow CramToUnmappedBams {
     File? ref_fasta
     File? ref_fasta_index
     String base_file_name
-    String unmapped_bam_suffix = ".unmapped.bam"
     Int additional_disk = 20
   }
 
@@ -42,7 +41,6 @@ workflow CramToUnmappedBams {
   call GenerateOutputMap {
     input:
       input_bam = input_file,
-      unmapped_bam_suffix = unmapped_bam_suffix,
       disk_size = ceil(input_size) + additional_disk
   }
 
@@ -171,11 +169,12 @@ task CramToBam {
 task GenerateOutputMap {
   input {
     File input_bam
-    String unmapped_bam_suffix
     Int disk_size
     Int memory_in_MiB = 3000
   }
 
+  String unmapped_bam_suffix = ".unmapped.bam"
+  
   command <<<
 
     set -e

@@ -20,7 +20,6 @@ struct SampleAndUnmappedBams {
   String? final_gvcf_base_name
   Array[File] flowcell_unmapped_bams
   String sample_name
-  String unmapped_bam_suffix
 }
 
 struct ReferenceFasta {

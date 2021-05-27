@@ -57,7 +57,7 @@ workflow UnmappedBamToAlignedBam {
 
     Float unmapped_bam_size = size(unmapped_bam, "GiB")
 
-    String unmapped_bam_basename = basename(unmapped_bam, sample_and_unmapped_bams.unmapped_bam_suffix)
+    String unmapped_bam_basename = basename(unmapped_bam, ".unmapped.bam")
 
     # QC the unmapped BAM
     call QC.CollectQualityYieldMetrics as CollectQualityYieldMetrics {
