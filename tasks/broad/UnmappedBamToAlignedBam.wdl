@@ -46,7 +46,16 @@ workflow UnmappedBamToAlignedBam {
 
   Float cutoff_for_large_rg_in_gb = 20.0
 
-  String bwa_commandline = "bwa mem -K 100000000 -p -v 3 -t 16 -Y $bash_ref_fasta"
+  String sample_name = sample_and_unmapped_bams.sample_name
+  String rg_line = "@RG\\tID:" + sample_name + "\\tSM:" + sample_name
+  # -K      process INT input bases in each batch regardless of nThreads (for reproducibility)
+  # -p      smart pairing (ignoring in2.fq)
+  # -v 3    minimum score to output [30]
+  # -t 16   threads
+  # -Y      use soft clipping for supplementary alignments
+  # -R      read group header line such as '@RG\tID:foo\tSM:bar'
+  # -M      mark shorter split hits as secondary
+  String bwa_commandline = "bwa mem -K 100000000 -p -v 3 -t 16 -Y -R '" + rg_line + "' $bash_ref_fasta"
 
   Int compression_level = 2
 
@@ -66,37 +75,20 @@ workflow UnmappedBamToAlignedBam {
         metrics_filename = unmapped_bam_basename + ".unmapped.quality_yield_metrics",
         preemptible_tries = papi_settings.preemptible_tries
     }
-
-    if (unmapped_bam_size > cutoff_for_large_rg_in_gb) {
-      # Split bam into multiple smaller bams,
-      # map reads to reference and recombine into one bam
-      call SplitRG.SplitLargeReadGroup as SplitRG {
-        input:
-          input_bam = unmapped_bam,
-          bwa_commandline = bwa_commandline,
-          output_bam_basename = unmapped_bam_basename + ".aligned.unsorted",
-          reference_fasta = references.reference_fasta,
-          compression_level = compression_level,
-          preemptible_tries = papi_settings.preemptible_tries,
-          hard_clip_reads = hard_clip_reads
-      }
+    
+    # Map reads to reference
+    call Alignment.Bazam as Bazam {
+      input:
+        input_bam = unmapped_bam,
+        bwa_commandline = bwa_commandline,
+        output_bam_basename = unmapped_bam_basename + ".aligned.sorted",
+        reference_fasta = references.reference_fasta,
+        preemptible_tries = papi_settings.preemptible_tries,
+        duplicate_metrics_fname = sample_and_unmapped_bams.base_file_name + ".duplicate_metrics",
     }
 
-    if (unmapped_bam_size <= cutoff_for_large_rg_in_gb) {
-      # Map reads to reference
-      call Alignment.SamToFastqAndBwaMemAndMba as SamToFastqAndBwaMemAndMba {
-        input:
-          input_bam = unmapped_bam,
-          bwa_commandline = bwa_commandline,
-          output_bam_basename = unmapped_bam_basename + ".aligned.unsorted",
-          reference_fasta = references.reference_fasta,
-          compression_level = compression_level,
-          preemptible_tries = papi_settings.preemptible_tries,
-          hard_clip_reads = hard_clip_reads
-      }
-    }
-
-    File output_aligned_bam = select_first([SamToFastqAndBwaMemAndMba.output_bam, SplitRG.aligned_bam])
+    File output_aligned_bam = Bazam.output_bam
+    File output_aligned_bam_index = Bazam.output_bam_index
 
     Float mapped_bam_size = size(output_aligned_bam, "GiB")
 
@@ -116,41 +108,21 @@ workflow UnmappedBamToAlignedBam {
       sizes = mapped_bam_size,
       preemptible_tries = papi_settings.preemptible_tries
   }
-
   # MarkDuplicates and SortSam currently take too long for preemptibles if the input data is too large
   Float gb_size_cutoff_for_preemptibles = 110.0
   Boolean data_too_large_for_preemptibles = SumFloats.total_size > gb_size_cutoff_for_preemptibles
-
-  # Aggregate aligned+merged flowcell BAM files and mark duplicates
-  # We take advantage of the tool's ability to take multiple BAM inputs and write out a single output
-  # to avoid having to spend time just merging BAM files.
-  call Processing.MarkDuplicates as MarkDuplicates {
-    input:
-      input_bams = output_aligned_bam,
-      output_bam_basename = sample_and_unmapped_bams.base_file_name + ".aligned.unsorted.duplicates_marked",
-      metrics_filename = sample_and_unmapped_bams.base_file_name + ".duplicate_metrics",
-      total_input_size = SumFloats.total_size,
-      compression_level = compression_level,
-      preemptible_tries = if data_too_large_for_preemptibles then 0 else papi_settings.agg_preemptible_tries
-  }
-
-  # Sort aggregated+deduped BAM file and fix tags
-  call Processing.SortSam as SortSampleBam {
-    input:
-      input_bam = MarkDuplicates.output_bam,
-      output_bam_basename = sample_and_unmapped_bams.base_file_name + ".aligned.duplicate_marked.sorted",
-      compression_level = compression_level,
-      preemptible_tries = if data_too_large_for_preemptibles then 0 else papi_settings.agg_preemptible_tries
-  }
-
-  Float agg_bam_size = size(SortSampleBam.output_bam, "GiB")
+  
+  File mapped_bam = select_first(output_aligned_bam)
+  File mapped_bam_index = select_first(output_aligned_bam_index)
+  
+  Float agg_bam_size = size(mapped_bam, "GiB")
 
   if (defined(haplotype_database_file) && check_fingerprints) {
     # Check identity of fingerprints across readgroups
     call QC.CrossCheckFingerprints as CrossCheckFingerprints {
       input:
-        input_bams = [ SortSampleBam.output_bam ],
-        input_bam_indexes = [SortSampleBam.output_bam_index],
+        input_bams = [ mapped_bam ],
+        input_bam_indexes = [ mapped_bam_index ],
         haplotype_database_file = haplotype_database_file,
         metrics_filename = sample_and_unmapped_bams.base_file_name + ".crosscheck",
         total_input_size = agg_bam_size,
@@ -171,8 +143,8 @@ workflow UnmappedBamToAlignedBam {
     # Estimate level of cross-sample contamination
     call Processing.CheckContamination as CheckContamination {
       input:
-        input_bam = SortSampleBam.output_bam,
-        input_bam_index = SortSampleBam.output_bam_index,
+        input_bam = mapped_bam,
+        input_bam_index = mapped_bam_index,
         contamination_sites_ud = contamination_sites_ud,
         contamination_sites_bed = contamination_sites_bed,
         contamination_sites_mu = contamination_sites_mu,
@@ -202,10 +174,10 @@ workflow UnmappedBamToAlignedBam {
     File? selfSM = CheckContamination.selfSM
     Float? contamination = CheckContamination.contamination
 
-    File duplicate_metrics = MarkDuplicates.duplicate_metrics
+    File duplicate_metrics = Bazam.duplicate_metrics
 
-    File output_bam = SortSampleBam.output_bam
-    File output_bam_index = SortSampleBam.output_bam_index
+    File output_bam = mapped_bam
+    File output_bam_index = mapped_bam_index
   }
   meta {
     allowNestedInputs: true

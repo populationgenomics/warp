@@ -17,6 +17,76 @@ version 1.0
 
 import "../../structs/dna_seq/DNASeqStructs.wdl"
 
+task Bazam {
+  input {
+    File input_bam
+    String bwa_commandline
+    String output_bam_basename
+    String duplicate_metrics_fname
+
+    # reference_fasta.ref_alt is the .alt file from bwa-kit
+    # (https://github.com/lh3/bwa/tree/master/bwakit),
+    # listing the reference contigs that are "alternative".
+    ReferenceFasta reference_fasta
+
+    Int preemptible_tries
+  }
+
+  Float unmapped_bam_size = size(input_bam, "GiB")
+  Float ref_size = size(reference_fasta.ref_fasta, "GiB") + size(reference_fasta.ref_fasta_index, "GiB") + size(reference_fasta.ref_dict, "GiB")
+  Float bwa_ref_size = ref_size + size(reference_fasta.ref_alt, "GiB") + size(reference_fasta.ref_amb, "GiB") + size(reference_fasta.ref_ann, "GiB") + size(reference_fasta.ref_bwt, "GiB") + size(reference_fasta.ref_pac, "GiB") + size(reference_fasta.ref_sa, "GiB")
+  # Sometimes the output is larger than the input, or a task can spill to disk.
+  # In these cases we need to account for the input (1) and the output (1.5) or the input(1), the output(1), and spillage (.5).
+  Float disk_multiplier = 2.5
+  Int disk_size = ceil(unmapped_bam_size + bwa_ref_size + (disk_multiplier * unmapped_bam_size) + 20)
+
+  command <<<
+    # This is done before "set -o pipefail" because "bwa" will have a rc=1 and we don't want to allow rc=1 to succeed
+    # because the sed may also fail with that error and that is something we actually want to fail on.
+    BWA_VERSION=$(/usr/gitc/bwa 2>&1 | \
+    grep -e '^Version' | \
+    sed 's/Version: //')
+
+    set -o pipefail
+    set -e
+
+    if [ -z ${BWA_VERSION} ]; then
+        exit 1;
+    fi
+
+    # set the bash variable needed for the command-line
+    bash_ref_fasta=~{reference_fasta.ref_fasta}
+    # if reference_fasta.ref_alt has data in it,
+    if [ -s ~{reference_fasta.ref_alt} ]; then
+      bazam -Xmx16g -Dsamjdk.reference_fasta=$bash_ref_fasta \
+        -n6 -bam ~{input_bam} | \
+        ~{bwa_commandline} /dev/stdin - 2> >(tee ~{output_bam_basename}.bwa.stderr.log >&2) | \
+      bamsormadup inputformat=sam threads=6 SO=coordinate \
+        indexfilename=~{output_bam_basename}.bai \
+        M=~{duplicate_metrics_fname} \
+        > ~{output_bam_basename}.bam
+
+    # else reference_fasta.ref_alt is empty or could not be found
+    else
+      exit 1;
+    fi
+  >>>
+  
+  runtime {
+    docker: "australia-southeast1-docker.pkg.dev/cpg-common/images/bazam:v2"
+    preemptible: preemptible_tries
+    memory: "14 GiB"
+    cpu: "16"
+    disks: "local-disk " + disk_size + " HDD"
+  }
+  output {
+    File output_bam = "~{output_bam_basename}.bam"
+    File output_bam_index = "~{output_bam_basename}.bai"
+    File bwa_stderr_log = "~{output_bam_basename}.bwa.stderr.log"
+    File duplicate_metrics = "~{duplicate_metrics_fname}"
+  }
+}
+  
 # Read unmapped BAM, convert on-the-fly to FASTQ and stream to BWA MEM for alignment, then stream to MergeBamAlignment
 task SamToFastqAndBwaMemAndMba {
   input {
@@ -43,8 +113,6 @@ task SamToFastqAndBwaMemAndMba {
   Int disk_size = ceil(unmapped_bam_size + bwa_ref_size + (disk_multiplier * unmapped_bam_size) + 20)
   
   command <<<
-
-
     # This is done before "set -o pipefail" because "bwa" will have a rc=1 and we don't want to allow rc=1 to succeed
     # because the sed may also fail with that error and that is something we actually want to fail on.
     BWA_VERSION=$(/usr/gitc/bwa 2>&1 | \
