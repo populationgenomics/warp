@@ -44,18 +44,8 @@ task Bazam {
   String output_format = if to_cram then "cram" else "bam"
 
   command <<<
-    # This is done before "set -o pipefail" because "bwa" will have a rc=1 and we don't want to allow rc=1 to succeed
-    # because the sed may also fail with that error and that is something we actually want to fail on.
-    BWA_VERSION=$(/usr/gitc/bwa 2>&1 | \
-    grep -e '^Version' | \
-    sed 's/Version: //')
-
     set -o pipefail
     set -ex
-
-    if [ -z ${BWA_VERSION} ]; then
-        exit 1;
-    fi
 
     # set the bash variable needed for the command-line
     bash_ref_fasta=~{reference_fasta.ref_fasta}
