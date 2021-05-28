@@ -30,6 +30,7 @@ task Bazam {
     ReferenceFasta reference_fasta
 
     Int preemptible_tries
+    Boolean to_cram = false
   }
 
   Float unmapped_bam_size = size(input_bam, "GiB")
@@ -39,6 +40,8 @@ task Bazam {
   # In these cases we need to account for the input (1) and the output (1.5) or the input(1), the output(1), and spillage (.5).
   Float disk_multiplier = 2.5
   Int disk_size = ceil(unmapped_bam_size + bwa_ref_size + (disk_multiplier * unmapped_bam_size) + 20)
+  
+  String output_format = if to_cram then "cram" else "bam"
 
   command <<<
     # This is done before "set -o pipefail" because "bwa" will have a rc=1 and we don't want to allow rc=1 to succeed
@@ -64,6 +67,7 @@ task Bazam {
       bamsormadup inputformat=sam threads=6 SO=coordinate \
         indexfilename=~{output_bam_basename}.bai \
         M=~{duplicate_metrics_fname} \
+        "outputformat=~{output_format} reference=$bash_ref_fasta" \
         > ~{output_bam_basename}.bam
 
     # else reference_fasta.ref_alt is empty or could not be found
@@ -73,7 +77,7 @@ task Bazam {
   >>>
   
   runtime {
-    docker: "australia-southeast1-docker.pkg.dev/cpg-common/images/bazam:v2"
+    docker: "australia-southeast1-docker.pkg.dev/fewgenomes/images/bazam:v2"
     preemptible: preemptible_tries
     memory: "14 GiB"
     cpu: "16"

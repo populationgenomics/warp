@@ -42,6 +42,8 @@ workflow UnmappedBamToAlignedBam {
     File haplotype_database_file
     Float lod_threshold
     Boolean hard_clip_reads = false
+    
+    Boolean to_cram = false
   }
 
   Float cutoff_for_large_rg_in_gb = 20.0
@@ -69,12 +71,12 @@ workflow UnmappedBamToAlignedBam {
     String unmapped_bam_basename = basename(unmapped_bam, ".unmapped.bam")
 
     # QC the unmapped BAM
-    call QC.CollectQualityYieldMetrics as CollectQualityYieldMetrics {
-      input:
-        input_bam = unmapped_bam,
-        metrics_filename = unmapped_bam_basename + ".unmapped.quality_yield_metrics",
-        preemptible_tries = papi_settings.preemptible_tries
-    }
+#    call QC.CollectQualityYieldMetrics as CollectQualityYieldMetrics {
+#      input:
+#        input_bam = unmapped_bam,
+#        metrics_filename = unmapped_bam_basename + ".unmapped.quality_yield_metrics",
+#        preemptible_tries = papi_settings.preemptible_tries
+#    }
     
     # Map reads to reference
     call Alignment.Bazam as Bazam {
@@ -85,6 +87,7 @@ workflow UnmappedBamToAlignedBam {
         reference_fasta = references.reference_fasta,
         preemptible_tries = papi_settings.preemptible_tries,
         duplicate_metrics_fname = sample_and_unmapped_bams.base_file_name + ".duplicate_metrics",
+        to_cram = to_cram,
     }
 
     File output_aligned_bam = Bazam.output_bam
@@ -132,13 +135,6 @@ workflow UnmappedBamToAlignedBam {
     }
   }
 
-  # Create list of sequences for scatter-gather parallelization
-  call Utils.CreateSequenceGroupingTSV as CreateSequenceGroupingTSV {
-    input:
-      ref_dict = references.reference_fasta.ref_dict,
-      preemptible_tries = papi_settings.preemptible_tries
-  }
-
   if (check_contamination) {
     # Estimate level of cross-sample contamination
     call Processing.CheckContamination as CheckContamination {
@@ -158,8 +154,6 @@ workflow UnmappedBamToAlignedBam {
 
   # Outputs that will be retained when execution is complete
   output {
-    Array[File] quality_yield_metrics = CollectQualityYieldMetrics.quality_yield_metrics
-
     Array[File] unsorted_read_group_base_distribution_by_cycle_pdf = CollectUnsortedReadgroupBamQualityMetrics.base_distribution_by_cycle_pdf
     Array[File] unsorted_read_group_base_distribution_by_cycle_metrics = CollectUnsortedReadgroupBamQualityMetrics.base_distribution_by_cycle_metrics
     Array[File] unsorted_read_group_insert_size_histogram_pdf = CollectUnsortedReadgroupBamQualityMetrics.insert_size_histogram_pdf
