@@ -70,14 +70,6 @@ workflow UnmappedBamToAlignedBam {
 
     String unmapped_bam_basename = basename(unmapped_bam, ".unmapped.bam")
 
-    # QC the unmapped BAM
-#    call QC.CollectQualityYieldMetrics as CollectQualityYieldMetrics {
-#      input:
-#        input_bam = unmapped_bam,
-#        metrics_filename = unmapped_bam_basename + ".unmapped.quality_yield_metrics",
-#        preemptible_tries = papi_settings.preemptible_tries
-#    }
-    
     # Map reads to reference
     call Alignment.Bazam as Bazam {
       input:

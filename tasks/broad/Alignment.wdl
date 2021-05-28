@@ -51,7 +51,7 @@ task Bazam {
     sed 's/Version: //')
 
     set -o pipefail
-    set -e
+    set -ex
 
     if [ -z ${BWA_VERSION} ]; then
         exit 1;
@@ -59,25 +59,21 @@ task Bazam {
 
     # set the bash variable needed for the command-line
     bash_ref_fasta=~{reference_fasta.ref_fasta}
-    # if reference_fasta.ref_alt has data in it,
-    if [ -s ~{reference_fasta.ref_alt} ]; then
-      bazam -Xmx16g -Dsamjdk.reference_fasta=$bash_ref_fasta \
-        -n6 -bam ~{input_bam} | \
-        ~{bwa_commandline} /dev/stdin - 2> >(tee ~{output_bam_basename}.bwa.stderr.log >&2) | \
-      bamsormadup inputformat=sam threads=6 SO=coordinate \
-        indexfilename=~{output_bam_basename}.bai \
-        M=~{duplicate_metrics_fname} \
-        "outputformat=~{output_format} reference=$bash_ref_fasta" \
-        > ~{output_bam_basename}.bam
-
-    # else reference_fasta.ref_alt is empty or could not be found
-    else
-      exit 1;
-    fi
+    bazam -Xmx16g -Dsamjdk.reference_fasta=$bash_ref_fasta \
+      -n6 -bam ~{input_bam} | \
+      ~{bwa_commandline} /dev/stdin - 2> >(tee ~{output_bam_basename}.bwa.stderr.log >&2) | \
+    bamsormadup inputformat=sam threads=6 SO=coordinate \
+      indexfilename=~{output_bam_basename}.bai \
+      M=~{duplicate_metrics_fname} \
+      "outputformat=~{output_format} reference=$bash_ref_fasta" \
+      > ~{output_bam_basename}.bam
   >>>
   
   runtime {
-    docker: "australia-southeast1-docker.pkg.dev/fewgenomes/images/bazam:v2"
+    # docker: "australia-southeast1-docker.pkg.dev/fewgenomes/images/bazam:v2"
+    # cromwell doesn't work with artifact registry:
+    # java.lang.Exception: Registry australia-southeast1-docker.pkg.dev is not supported
+    docker: "gcr.io/fewgenomes/bazam:v2"
     preemptible: preemptible_tries
     memory: "14 GiB"
     cpu: "16"
