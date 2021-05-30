@@ -15,6 +15,14 @@ struct SampleAndFastqs {
   String sample_name
 }
 
+struct SampleAndUnmappedCram {
+  String base_file_name
+  String? final_gvcf_base_name
+  File unmapped_cram
+  File unmapped_crai
+  String sample_name
+}
+
 struct SampleAndUnmappedBams {
   String base_file_name
   String? final_gvcf_base_name

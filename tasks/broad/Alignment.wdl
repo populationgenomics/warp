@@ -20,7 +20,8 @@ import "../../structs/dna_seq/DNASeqStructs.wdl"
 task Bazam {
   input {
     File input_bam
-    String bwa_commandline
+    File input_bam_index
+    String sample_name
     String output_bam_basename
     String duplicate_metrics_fname
 
@@ -31,6 +32,7 @@ task Bazam {
 
     Int preemptible_tries
     Boolean to_cram = false
+    String? subset_region 
   }
 
   Float unmapped_bam_size = size(input_bam, "GiB")
@@ -42,6 +44,22 @@ task Bazam {
   Int disk_size = ceil(unmapped_bam_size + bwa_ref_size + (disk_multiplier * unmapped_bam_size) + 20)
   
   String output_format = if to_cram then "cram" else "bam"
+  String bazam_regions = if defined(subset_region) then "--regions ~{subset_region} " else ""
+  
+  Int bwa_cpu = 20
+  Int bazam_cpu = 6
+  Int bamsormadup_cpu = 6
+  Int total_cpu = bwa_cpu + bazam_cpu + bamsormadup_cpu
+
+  # -K      process INT input bases in each batch regardless of nThreads (for reproducibility)
+  # -p      smart pairing (ignoring in2.fq)
+  # -v 3    minimum score to output [30]
+  # -t 16   threads
+  # -Y      use soft clipping for supplementary alignments
+  # -R      read group header line such as '@RG\tID:foo\tSM:bar'
+  # -M      mark shorter split hits as secondary
+  String rg_line = "@RG\\tID:~{sample_name}\\tSM:~{sample_name}"
+  String bwa_commandline = "bwa mem -K 100000000 -p -v3 -t~{bwa_cpu} -Y -R '~{rg_line}' $bash_ref_fasta"
 
   command <<<
     set -o pipefail
@@ -50,9 +68,9 @@ task Bazam {
     # set the bash variable needed for the command-line
     bash_ref_fasta=~{reference_fasta.ref_fasta}
     bazam -Xmx16g -Dsamjdk.reference_fasta=$bash_ref_fasta \
-      -n6 -bam ~{input_bam} | \
+      ~{bazam_regions} -n~{bazam_cpu} -bam ~{input_bam} | \
       ~{bwa_commandline} /dev/stdin - 2> >(tee ~{output_bam_basename}.bwa.stderr.log >&2) | \
-    bamsormadup inputformat=sam threads=6 SO=coordinate \
+    bamsormadup inputformat=sam threads=~{bamsormadup_cpu} SO=coordinate \
       indexfilename=~{output_bam_basename}.bai \
       M=~{duplicate_metrics_fname} \
       "outputformat=~{output_format} reference=$bash_ref_fasta" \
@@ -65,8 +83,8 @@ task Bazam {
     # java.lang.Exception: Registry australia-southeast1-docker.pkg.dev is not supported
     docker: "gcr.io/fewgenomes/bazam:v2"
     preemptible: preemptible_tries
-    memory: "14 GiB"
-    cpu: "16"
+    memory: "64 GiB"
+    cpu: total_cpu
     disks: "local-disk " + disk_size + " HDD"
   }
   output {

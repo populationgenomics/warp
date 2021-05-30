@@ -35,7 +35,7 @@ workflow WholeGenomeGermlineSingleSample {
   String pipeline_version = "2.3.3"
 
   input {
-    SampleAndUnmappedBams sample_and_unmapped_bams
+    SampleAndUnmappedCram sample_and_unmapped_cram
     DNASeqSingleSampleReferences references
     VariantCallingScatterSettings scatter_settings
     PapiSettings papi_settings
@@ -52,18 +52,19 @@ workflow WholeGenomeGermlineSingleSample {
     Boolean provide_bam_output = false
     Boolean use_gatk3_haplotype_caller = false
     Boolean validate_gvcf = true
+
+    String? subset_region
   }
 
   # Not overridable:
   Int read_length = 250
   Float lod_threshold = -20.0
   String cross_check_fingerprints_by = "READGROUP"
-
-  String final_gvcf_base_name = select_first([sample_and_unmapped_bams.final_gvcf_base_name, sample_and_unmapped_bams.base_file_name])
+  String final_gvcf_base_name = select_first([sample_and_unmapped_cram.final_gvcf_base_name, sample_and_unmapped_cram.base_file_name])
 
   call ToBam.UnmappedBamToAlignedBam {
     input:
-      sample_and_unmapped_bams    = sample_and_unmapped_bams,
+      sample_and_unmapped_cram    = sample_and_unmapped_cram,
       references                  = references,
       papi_settings               = papi_settings,
 
@@ -79,6 +80,7 @@ workflow WholeGenomeGermlineSingleSample {
       lod_threshold               = lod_threshold,
     
       to_cram = to_cram,
+      subset_region = subset_region,
   }
 
   File mapped_bam = UnmappedBamToAlignedBam.output_bam
@@ -88,8 +90,8 @@ workflow WholeGenomeGermlineSingleSample {
     input:
       base_recalibrated_bam = mapped_bam,
       base_recalibrated_bam_index = mapped_index,
-      base_name = sample_and_unmapped_bams.base_file_name,
-      sample_name = sample_and_unmapped_bams.sample_name,
+      base_name = sample_and_unmapped_cram.base_file_name,
+      sample_name = sample_and_unmapped_cram.sample_name,
       haplotype_database_file = references.haplotype_database_file,
       references = references,
       fingerprint_genotypes_file = fingerprint_genotypes_file,
@@ -102,7 +104,7 @@ workflow WholeGenomeGermlineSingleSample {
     input:
       input_bam = mapped_bam,
       input_bam_index = mapped_index,
-      metrics_filename = sample_and_unmapped_bams.base_file_name + ".wgs_metrics",
+      metrics_filename = sample_and_unmapped_cram.base_file_name + ".wgs_metrics",
       ref_fasta = references.reference_fasta.ref_fasta,
       ref_fasta_index = references.reference_fasta.ref_fasta_index,
       wgs_coverage_interval_list = wgs_coverage_interval_list,
@@ -115,7 +117,7 @@ workflow WholeGenomeGermlineSingleSample {
     input:
       input_bam = mapped_bam,
       input_bam_index = mapped_index,
-      metrics_filename = sample_and_unmapped_bams.base_file_name + ".raw_wgs_metrics",
+      metrics_filename = sample_and_unmapped_cram.base_file_name + ".raw_wgs_metrics",
       ref_fasta = references.reference_fasta.ref_fasta,
       ref_fasta_index = references.reference_fasta.ref_fasta_index,
       wgs_coverage_interval_list = wgs_coverage_interval_list,
@@ -137,7 +139,7 @@ workflow WholeGenomeGermlineSingleSample {
       ref_dict = references.reference_fasta.ref_dict,
       dbsnp_vcf = references.dbsnp_vcf,
       dbsnp_vcf_index = references.dbsnp_vcf_index,
-      base_file_name = sample_and_unmapped_bams.base_file_name,
+      base_file_name = sample_and_unmapped_cram.base_file_name,
       final_vcf_base_name = final_gvcf_base_name,
       agg_preemptible_tries = papi_settings.agg_preemptible_tries,
       use_gatk3_haplotype_caller = use_gatk3_haplotype_caller,
