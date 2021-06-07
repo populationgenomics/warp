@@ -40,7 +40,7 @@ workflow WholeGenomeGermlineSingleSample {
     VariantCallingScatterSettings scatter_settings
     PapiSettings papi_settings
     
-    Boolean to_cram = false
+    Boolean to_cram = true
     Boolean check_contamination = true
     Boolean check_fingerprints = false
 
@@ -49,7 +49,7 @@ workflow WholeGenomeGermlineSingleSample {
 
     File wgs_coverage_interval_list
 
-    Boolean provide_bam_output = false
+    Boolean provide_bam_output = true
     Boolean use_gatk3_haplotype_caller = false
     Boolean validate_gvcf = true
 
