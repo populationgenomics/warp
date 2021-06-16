@@ -27,7 +27,7 @@ import "../../structs/dna_seq/DNASeqStructs.wdl" as Structs
 workflow UnmappedBamToAlignedBam {
 
   input {
-    SampleAndUnmappedCram sample_and_unmapped_cram
+    SampleAndBam sample_and_bam
     DNASeqSingleSampleReferences references
     PapiSettings papi_settings
 
@@ -51,22 +51,27 @@ workflow UnmappedBamToAlignedBam {
 
   # Get the size of the standard reference files as well as the additional reference files needed for BWA
 
-  File unmapped_cram = sample_and_unmapped_cram.unmapped_cram
-  File unmapped_crai = sample_and_unmapped_cram.unmapped_crai
+  File unmapped_bam = sample_and_bam.bam_or_cram
+  File unmapped_index = select_first([sample_and_bam.bai_or_crai, sub(unmapped_bam, ".bam$", ".bai")])
+  if (basename(unmapped_bam, ".bam") == basename(unmapped_bam)) {
+    # Not a BAM suffix, so probably CRAM
+    File unmapped_bam_index = select_first([sample_and_bam.bai_or_crai, sub(unmapped_bam, ".cram$", ".crai")])
+  }
 
-  String unmapped_bam_index = basename(unmapped_cram, ".cram") + ".crai"
-  Float unmapped_bam_size = size(unmapped_cram, "GiB")
-  String unmapped_bam_basename = basename(unmapped_cram, ".bam")
-
+  # We don't partition input BAM for distributed alignment, to avoid extra copying
+  # and extra deduplication+merge step with a large overhead.
+  # However, if you want shared parallelilsm, consider adding 
+  # bazam sharded parallelism like in this pipeline:
+  # https://github.com/Oshlack/STRetch/blob/c5345e5dea4adfde790befb9903ec2d81ed5b2c1/pipelines/pipeline_stages.groovy#L101
   call Alignment.Bazam as Bazam {
     input:
-      input_bam = unmapped_cram,
-      input_bam_index = unmapped_crai,
-      sample_name = sample_and_unmapped_cram.sample_name,
-      output_bam_basename = unmapped_bam_basename + ".realigned.sorted",
+      input_bam = unmapped_bam,
+      input_bam_index = unmapped_index,
+      sample_name = sample_and_bam.sample_name,
+      output_bam_basename = sample_and_bam.base_file_name,
       reference_fasta = references.reference_fasta,
       preemptible_tries = papi_settings.preemptible_tries,
-      duplicate_metrics_fname = sample_and_unmapped_cram.base_file_name + ".duplicate_metrics",
+      duplicate_metrics_fname = sample_and_bam.base_file_name + ".duplicate_metrics",
       to_cram = to_cram,
       subset_region = subset_region,
   }
@@ -75,24 +80,8 @@ workflow UnmappedBamToAlignedBam {
   File output_aligned_bam_index = Bazam.output_bam_index
 
   Float mapped_bam_size = size(output_aligned_bam, "GiB")
-
-  # QC the aligned but unsorted readgroup BAM
-  # no reference as the input here is unsorted, providing a reference would cause an error
-  call QC.CollectUnsortedReadgroupBamQualityMetrics as CollectUnsortedReadgroupBamQualityMetrics {
-    input:
-      input_bam = output_aligned_bam,
-      output_bam_prefix = unmapped_bam_basename + ".readgroup",
-      preemptible_tries = papi_settings.preemptible_tries
-  }
-  
-  # MarkDuplicates and SortSam currently take too long for preemptibles if the input data is too large
-  Float gb_size_cutoff_for_preemptibles = 110.0
-  Boolean data_too_large_for_preemptibles = mapped_bam_size > gb_size_cutoff_for_preemptibles
-  
   File mapped_bam = output_aligned_bam
   File mapped_bam_index = output_aligned_bam_index
-  
-  Float agg_bam_size = size(mapped_bam, "GiB")
 
   if (defined(haplotype_database_file) && check_fingerprints) {
     # Check identity of fingerprints across readgroups
@@ -101,11 +90,14 @@ workflow UnmappedBamToAlignedBam {
         input_bams = [ mapped_bam ],
         input_bam_indexes = [ mapped_bam_index ],
         haplotype_database_file = haplotype_database_file,
-        metrics_filename = sample_and_unmapped_cram.base_file_name + ".crosscheck",
-        total_input_size = agg_bam_size,
+        metrics_filename = sample_and_bam.base_file_name + ".crosscheck",
+        total_input_size = mapped_bam_size,
         lod_threshold = lod_threshold,
         cross_check_by = cross_check_fingerprints_by,
-        preemptible_tries = papi_settings.agg_preemptible_tries
+        preemptible_tries = papi_settings.agg_preemptible_tries,
+        ref_dict = references.reference_fasta.ref_dict,
+        ref_fasta = references.reference_fasta.ref_fasta,
+        ref_fasta_index = references.reference_fasta.ref_fasta_index
     }
   }
 
@@ -120,7 +112,7 @@ workflow UnmappedBamToAlignedBam {
         contamination_sites_mu = contamination_sites_mu,
         ref_fasta = references.reference_fasta.ref_fasta,
         ref_fasta_index = references.reference_fasta.ref_fasta_index,
-        output_prefix = sample_and_unmapped_cram.base_file_name + ".preBqsr",
+        output_prefix = sample_and_bam.base_file_name,
         preemptible_tries = papi_settings.agg_preemptible_tries,
         contamination_underestimation_factor = 0.75
     }
@@ -128,15 +120,6 @@ workflow UnmappedBamToAlignedBam {
 
   # Outputs that will be retained when execution is complete
   output {
-    File unsorted_read_group_base_distribution_by_cycle_pdf = CollectUnsortedReadgroupBamQualityMetrics.base_distribution_by_cycle_pdf
-    File unsorted_read_group_base_distribution_by_cycle_metrics = CollectUnsortedReadgroupBamQualityMetrics.base_distribution_by_cycle_metrics
-    File unsorted_read_group_insert_size_histogram_pdf = CollectUnsortedReadgroupBamQualityMetrics.insert_size_histogram_pdf
-    File unsorted_read_group_insert_size_metrics = CollectUnsortedReadgroupBamQualityMetrics.insert_size_metrics
-    File unsorted_read_group_quality_by_cycle_pdf = CollectUnsortedReadgroupBamQualityMetrics.quality_by_cycle_pdf
-    File unsorted_read_group_quality_by_cycle_metrics = CollectUnsortedReadgroupBamQualityMetrics.quality_by_cycle_metrics
-    File unsorted_read_group_quality_distribution_pdf = CollectUnsortedReadgroupBamQualityMetrics.quality_distribution_pdf
-    File unsorted_read_group_quality_distribution_metrics = CollectUnsortedReadgroupBamQualityMetrics.quality_distribution_metrics
-    
     File? cross_check_fingerprints_metrics = CrossCheckFingerprints.cross_check_fingerprints_metrics
 
     File? selfSM = CheckContamination.selfSM
@@ -145,7 +128,7 @@ workflow UnmappedBamToAlignedBam {
     File duplicate_metrics = Bazam.duplicate_metrics
 
     File output_bam = mapped_bam
-    File output_bam_index = mapped_bam_index
+    File output_index = mapped_bam_index
   }
   meta {
     allowNestedInputs: true

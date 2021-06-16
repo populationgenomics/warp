@@ -49,6 +49,9 @@ task CollectUnsortedReadgroupBamQualityMetrics {
     File input_bam
     String output_bam_prefix
     Int preemptible_tries
+    File ref_dict
+    File ref_fasta
+    File ref_fasta_index
   }
 
   Int disk_size = ceil(size(input_bam, "GiB")) + 20
@@ -65,7 +68,8 @@ task CollectUnsortedReadgroupBamQualityMetrics {
       PROGRAM=MeanQualityByCycle \
       PROGRAM=QualityScoreDistribution \
       METRIC_ACCUMULATION_LEVEL=null \
-      METRIC_ACCUMULATION_LEVEL=ALL_READS
+      METRIC_ACCUMULATION_LEVEL=ALL_READS \
+      REFERENCE_SEQUENCE=~{ref_fasta}
 
     touch ~{output_bam_prefix}.insert_size_metrics
     touch ~{output_bam_prefix}.insert_size_histogram.pdf
@@ -248,6 +252,9 @@ task CrossCheckFingerprints {
     Int preemptible_tries
     Float lod_threshold
     String cross_check_by
+    File ref_dict
+    File ref_fasta
+    File ref_fasta_index
   }
 
   Int disk_size = ceil(total_input_size) + 20
@@ -262,7 +269,8 @@ task CrossCheckFingerprints {
       EXPECT_ALL_GROUPS_TO_MATCH=true \
       INPUT=~{sep=' INPUT=' input_bams} \
       LOD_THRESHOLD=~{lod_threshold} \
-      CROSSCHECK_BY=~{cross_check_by}
+      CROSSCHECK_BY=~{cross_check_by} \
+      R=~{ref_fasta}
   >>>
   runtime {
     docker: "us.gcr.io/broad-gotc-prod/picard-cloud:2.23.8"
@@ -286,6 +294,9 @@ task CheckFingerprint {
     File? genotypes_index
     String sample
     Int preemptible_tries
+    File ref_dict
+    File ref_fasta
+    File ref_fasta_index
   }
 
   Int disk_size = ceil(size(input_bam, "GiB")) + 20
@@ -305,7 +316,8 @@ task CheckFingerprint {
       GENOTYPES=~{genotypes} \
       HAPLOTYPE_MAP=~{haplotype_database_file} \
       SAMPLE_ALIAS="~{sample}" \
-      IGNORE_READ_GROUPS=true
+      IGNORE_READ_GROUPS=true \
+      R=~{ref_fasta}
 
   >>>
   runtime {
@@ -553,6 +565,9 @@ task CalculateReadGroupChecksum {
     File input_bam_index
     String read_group_md5_filename
     Int preemptible_tries
+    File ref_dict
+    File ref_fasta
+    File ref_fasta_index
   }
 
   Int disk_size = ceil(size(input_bam, "GiB")) + 20
@@ -561,7 +576,8 @@ task CalculateReadGroupChecksum {
     java -Xms1000m -jar /usr/picard/picard.jar \
       CalculateReadGroupChecksum \
       INPUT=~{input_bam} \
-      OUTPUT=~{read_group_md5_filename}
+      OUTPUT=~{read_group_md5_filename} \
+      R=~{ref_fasta}
   }
   runtime {
     docker: "us.gcr.io/broad-gotc-prod/picard-cloud:2.23.8"

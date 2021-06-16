@@ -3,8 +3,8 @@ version 1.0
 struct SampleAndBam {
   String base_file_name
   String? final_gvcf_base_name
-  File mapped_bam
-  File? mapped_index
+  File bam_or_cram
+  File? bai_or_crai
   String sample_name
 }
 
@@ -15,11 +15,11 @@ struct SampleAndFastqs {
   String sample_name
 }
 
-struct SampleAndUnmappedCram {
+struct SampleAndUnmappedBam {
   String base_file_name
   String? final_gvcf_base_name
-  File unmapped_cram
-  File unmapped_crai
+  File unmapped_bam
+  File? unmapped_index
   String sample_name
 }
 

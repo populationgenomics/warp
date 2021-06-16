@@ -34,14 +34,6 @@ task Bazam {
     Boolean to_cram = false
     String? subset_region 
   }
-
-  Float unmapped_bam_size = size(input_bam, "GiB")
-  Float ref_size = size(reference_fasta.ref_fasta, "GiB") + size(reference_fasta.ref_fasta_index, "GiB") + size(reference_fasta.ref_dict, "GiB")
-  Float bwa_ref_size = ref_size + size(reference_fasta.ref_alt, "GiB") + size(reference_fasta.ref_amb, "GiB") + size(reference_fasta.ref_ann, "GiB") + size(reference_fasta.ref_bwt, "GiB") + size(reference_fasta.ref_pac, "GiB") + size(reference_fasta.ref_sa, "GiB")
-  # Sometimes the output is larger than the input, or a task can spill to disk.
-  # In these cases we need to account for the input (1) and the output (1.5) or the input(1), the output(1), and spillage (.5).
-  Float disk_multiplier = 2.5
-  Int disk_size = ceil(unmapped_bam_size + bwa_ref_size + (disk_multiplier * unmapped_bam_size) + 20)
   
   String output_format = if to_cram then "cram" else "bam"
   String bazam_regions = if defined(subset_region) then "--regions ~{subset_region} " else ""
@@ -51,6 +43,12 @@ task Bazam {
   Int bamsormadup_cpu = 6
   Int total_cpu = bwa_cpu + bazam_cpu + bamsormadup_cpu
 
+  String rg_line = "@RG\\tID:~{sample_name}\\tSM:~{sample_name}"
+  
+  String output_file = if to_cram then "~{output_bam_basename}.cram" else "~{output_bam_basename}.bam"
+  String output_index = if to_cram then "~{output_bam_basename}.crai" else "~{output_bam_basename}.bai"
+  
+  # BWA command options:
   # -K      process INT input bases in each batch regardless of nThreads (for reproducibility)
   # -p      smart pairing (ignoring in2.fq)
   # -v 3    minimum score to output [30]
@@ -58,23 +56,27 @@ task Bazam {
   # -Y      use soft clipping for supplementary alignments
   # -R      read group header line such as '@RG\tID:foo\tSM:bar'
   # -M      mark shorter split hits as secondary
-  String rg_line = "@RG\\tID:~{sample_name}\\tSM:~{sample_name}"
-  String bwa_commandline = "bwa mem -K 100000000 -p -v3 -t~{bwa_cpu} -Y -R '~{rg_line}' $bash_ref_fasta"
-
   command <<<
     set -o pipefail
     set -ex
 
-    # set the bash variable needed for the command-line
-    bash_ref_fasta=~{reference_fasta.ref_fasta}
-    bazam -Xmx16g -Dsamjdk.reference_fasta=$bash_ref_fasta \
+    (while true; do df -h; pwd; du -sh *; sleep 300; done) &
+    
+    bazam -Xmx16g -Dsamjdk.reference_fasta=~{reference_fasta.ref_fasta} \
       ~{bazam_regions} -n~{bazam_cpu} -bam ~{input_bam} | \
-      ~{bwa_commandline} /dev/stdin - 2> >(tee ~{output_bam_basename}.bwa.stderr.log >&2) | \
+    bwa mem -K 100000000 -p -v3 -t~{bwa_cpu} -Y -R '~{rg_line}' \
+      ~{reference_fasta.ref_fasta} /dev/stdin - \
+      2> >(tee ~{output_bam_basename}.bwa.stderr.log >&2) | \
     bamsormadup inputformat=sam threads=~{bamsormadup_cpu} SO=coordinate \
-      indexfilename=~{output_bam_basename}.bai \
       M=~{duplicate_metrics_fname} \
-      "outputformat=~{output_format} reference=$bash_ref_fasta" \
-      > ~{output_bam_basename}.bam
+      outputformat=sam | \
+    samtools view -T ~{reference_fasta.ref_fasta} \
+      -O ~{output_format} \
+      -o ~{output_file}
+    
+    samtools index -@~{total_cpu} ~{output_file} ~{output_index}
+
+    df -h; pwd; du -sh *
   >>>
   
   runtime {
@@ -85,11 +87,11 @@ task Bazam {
     preemptible: preemptible_tries
     memory: "64 GiB"
     cpu: total_cpu
-    disks: "local-disk " + disk_size + " HDD"
+    disks: "local-disk " + 500 + " HDD"
   }
   output {
-    File output_bam = "~{output_bam_basename}.bam"
-    File output_bam_index = "~{output_bam_basename}.bai"
+    File output_bam = output_file
+    File output_bam_index = output_index
     File bwa_stderr_log = "~{output_bam_basename}.bwa.stderr.log"
     File duplicate_metrics = "~{duplicate_metrics_fname}"
   }
