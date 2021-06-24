@@ -22,7 +22,7 @@ version 1.0
 ## page at https://hub.docker.com/r/broadinstitute/genomes-in-the-cloud/ for detailed
 ## licensing information pertaining to the included programs.
 
-import "../../../../../../tasks/broad/UnmappedBamToAlignedBam.wdl" as ToBam
+import "../../../../../../tasks/broad/BamOrCramOrFastqToAlignedBamOrCram.wdl" as ToBam
 import "../../../../../../tasks/broad/AggregatedBamQC.wdl" as AggregatedQC
 import "../../../../../../tasks/broad/Qc.wdl" as QC
 import "../../../../../../tasks/broad/BamToCram.wdl" as ToCram
@@ -35,7 +35,7 @@ workflow WholeGenomeGermlineSingleSample {
   String pipeline_version = "2.3.3"
 
   input {
-    SampleAndBam sample_and_bam
+    Input inp
     DNASeqSingleSampleReferences references
     VariantCallingScatterSettings scatter_settings
     PapiSettings papi_settings
@@ -61,14 +61,14 @@ workflow WholeGenomeGermlineSingleSample {
   Int read_length = 250
   Float lod_threshold = -20.0
   String cross_check_fingerprints_by = "READGROUP"
-  String final_gvcf_base_name = select_first([sample_and_bam.final_gvcf_base_name, sample_and_bam.base_file_name])
-  
+  String final_gvcf_base_name = select_first([inp.final_gvcf_base_name, inp.base_file_name])
+
   if (realign) {
-    call ToBam.UnmappedBamToAlignedBam {
+    call ToBam.BamOrCramOrFastqToAlignedBamOrCram {
       input:
-        sample_and_bam = sample_and_bam,
-        references     = references,
-        papi_settings  = papi_settings,
+        inp = inp,
+        references = references,
+        papi_settings = papi_settings,
   
         check_contamination = check_contamination,
         check_fingerprints  = check_fingerprints,
@@ -82,19 +82,19 @@ workflow WholeGenomeGermlineSingleSample {
         lod_threshold               = lod_threshold,
       
         to_cram = to_cram,
-        subset_region = subset_region,
+        subset_region = subset_region
     }
   }
 
-  File mapped_file = select_first([UnmappedBamToAlignedBam.output_bam, sample_and_bam.bam_or_cram])
-  File mapped_index = select_first([UnmappedBamToAlignedBam.output_index, sample_and_bam.bai_or_crai])
+  File mapped_file = select_first([BamOrCramOrFastqToAlignedBamOrCram.output_file, inp.bam_or_cram_or_fastq1])
+  File mapped_indx = select_first([BamOrCramOrFastqToAlignedBamOrCram.output_indx, inp.bai_or_crai_or_fastq2])
 
   call AggregatedQC.AggregatedBamQC {
     input:
       base_recalibrated_bam = mapped_file,
-      base_recalibrated_bam_index = mapped_index,
-      base_name = sample_and_bam.base_file_name,
-      sample_name = sample_and_bam.sample_name,
+      base_recalibrated_bam_index = mapped_indx,
+      base_name = inp.base_file_name,
+      sample_name = inp.sample_name,
       haplotype_database_file = references.haplotype_database_file,
       references = references,
       fingerprint_genotypes_file = fingerprint_genotypes_file,
@@ -106,8 +106,8 @@ workflow WholeGenomeGermlineSingleSample {
   call QC.CollectWgsMetrics as CollectWgsMetrics {
     input:
       input_bam = mapped_file,
-      input_bam_index = mapped_index,
-      metrics_filename = sample_and_bam.base_file_name + ".wgs_metrics",
+      input_bam_index = mapped_indx,
+      metrics_filename = inp.base_file_name + ".wgs_metrics",
       ref_fasta = references.reference_fasta.ref_fasta,
       ref_fasta_index = references.reference_fasta.ref_fasta_index,
       wgs_coverage_interval_list = wgs_coverage_interval_list,
@@ -119,8 +119,8 @@ workflow WholeGenomeGermlineSingleSample {
   call QC.CollectRawWgsMetrics as CollectRawWgsMetrics {
     input:
       input_bam = mapped_file,
-      input_bam_index = mapped_index,
-      metrics_filename = sample_and_bam.base_file_name + ".raw_wgs_metrics",
+      input_bam_index = mapped_indx,
+      metrics_filename = inp.base_file_name + ".raw_wgs_metrics",
       ref_fasta = references.reference_fasta.ref_fasta,
       ref_fasta_index = references.reference_fasta.ref_fasta_index,
       wgs_coverage_interval_list = wgs_coverage_interval_list,
@@ -134,15 +134,15 @@ workflow WholeGenomeGermlineSingleSample {
       evaluation_interval_list = references.evaluation_interval_list,
       haplotype_scatter_count = scatter_settings.haplotype_scatter_count,
       break_bands_at_multiples_of = scatter_settings.break_bands_at_multiples_of,
-      contamination = UnmappedBamToAlignedBam.contamination,
+      contamination = BamOrCramOrFastqToAlignedBamOrCram.contamination,
       input_bam = mapped_file,
-      input_bam_index = mapped_index,
+      input_bam_index = mapped_indx,
       ref_fasta = references.reference_fasta.ref_fasta,
       ref_fasta_index = references.reference_fasta.ref_fasta_index,
       ref_dict = references.reference_fasta.ref_dict,
       dbsnp_vcf = references.dbsnp_vcf,
       dbsnp_vcf_index = references.dbsnp_vcf_index,
-      base_file_name = sample_and_bam.base_file_name,
+      base_file_name = inp.base_file_name,
       final_vcf_base_name = final_gvcf_base_name,
       agg_preemptible_tries = papi_settings.agg_preemptible_tries,
       use_gatk3_haplotype_caller = use_gatk3_haplotype_caller,
@@ -151,15 +151,15 @@ workflow WholeGenomeGermlineSingleSample {
 
   if (output_alignment_file) {
     File alignment_file_to_output = mapped_file
-    File alignment_index_to_output = mapped_index
+    File alignment_indx_to_output = mapped_indx
   }
 
   # Outputs that will be retained when execution is complete
   output {
-    File? cross_check_fingerprints_metrics = UnmappedBamToAlignedBam.cross_check_fingerprints_metrics
+    File? cross_check_fingerprints_metrics = BamOrCramOrFastqToAlignedBamOrCram.cross_check_fingerprints_metrics
 
-    File? selfSM = UnmappedBamToAlignedBam.selfSM
-    Float? contamination = UnmappedBamToAlignedBam.contamination
+    File? selfSM = BamOrCramOrFastqToAlignedBamOrCram.selfSM
+    Float? contamination = BamOrCramOrFastqToAlignedBamOrCram.contamination
 
     File calculate_read_group_checksum_md5 = AggregatedBamQC.calculate_read_group_checksum_md5
 
@@ -183,13 +183,13 @@ workflow WholeGenomeGermlineSingleSample {
     File wgs_metrics = CollectWgsMetrics.metrics
     File raw_wgs_metrics = CollectRawWgsMetrics.metrics
 
-    File? duplicate_metrics = UnmappedBamToAlignedBam.duplicate_metrics
+    File? duplicate_metrics = BamOrCramOrFastqToAlignedBamOrCram.duplicate_metrics
 
     File? gvcf_summary_metrics = BamToGvcf.vcf_summary_metrics
     File? gvcf_detail_metrics = BamToGvcf.vcf_detail_metrics
 
     File? alignment_file = alignment_file_to_output
-    File? alignment_index = alignment_index_to_output
+    File? alignment_indx = alignment_indx_to_output
 
     File output_vcf = BamToGvcf.output_vcf
     File output_vcf_index = BamToGvcf.output_vcf_index

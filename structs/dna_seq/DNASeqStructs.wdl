@@ -1,17 +1,10 @@
 version 1.0
 
-struct SampleAndBam {
+struct Input {
   String base_file_name
   String? final_gvcf_base_name
-  File bam_or_cram
-  File? bai_or_crai
-  String sample_name
-}
-
-struct SampleAndFastqs {
-  String base_file_name
-  String? final_gvcf_base_name
-  Array[Array[File]] fastqs
+  File bam_or_cram_or_fastq1
+  File bai_or_crai_or_fastq2
   String sample_name
 }
 

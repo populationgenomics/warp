@@ -119,7 +119,7 @@ task HaplotypeCaller_GATK4_VCF {
       -O ~{output_file_name} \
       -contamination ~{default=0 contamination} \
       -G StandardAnnotation -G StandardHCAnnotation ~{true="-G AS_StandardAnnotation" false="" make_gvcf} \
-      -GQB 10 -GQB 20 -GQB 30 -GQB 40 -GQB 50 -GQB 60 -GQB 70 -GQB 80 -GQB 90 \
+      -GQB 20 \
       ~{true="-ERC GVCF" false="" make_gvcf} \
       ~{bamout_arg}
 
