@@ -1,7 +1,7 @@
 {
-  "WholeGenomeGermlineSingleSample.sample_map": "gs://cpg-fewgenomes-test/fastq/v1/sample_map.tsv",
+  "WholeGenomeGermlineMultipleSamples.sample_map": "gs://cpg-fewgenomes-test/fastq/v1/sample_map.tsv",
 
-  "WholeGenomeGermlineSingleSample.references": {
+  "WholeGenomeGermlineMultipleSamples.references": {
     "contamination_sites_ud": "gs://gcp-public-data--broad-references/hg38/v0/contamination-resources/1000g/1000g.phase3.100k.b38.vcf.gz.dat.UD",
     "contamination_sites_bed": "gs://gcp-public-data--broad-references/hg38/v0/contamination-resources/1000g/1000g.phase3.100k.b38.vcf.gz.dat.bed",
     "contamination_sites_mu": "gs://gcp-public-data--broad-references/hg38/v0/contamination-resources/1000g/1000g.phase3.100k.b38.vcf.gz.dat.mu",
@@ -31,18 +31,18 @@
     "haplotype_database_file": "gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.haplotype_database.txt"
   },
 
-  "WholeGenomeGermlineSingleSample.scatter_settings": {
+  "WholeGenomeGermlineMultipleSamples.scatter_settings": {
     "haplotype_scatter_count": 4,
     "break_bands_at_multiples_of": 100000
   },
 
-  "WholeGenomeGermlineSingleSample.to_cram": true,
-  "WholeGenomeGermlineSingleSample.check_contamination": true,
-  "WholeGenomeGermlineSingleSample.check_fingerprints": false,
-  "WholeGenomeGermlineSingleSample.validate_gvcf": false,
-  "WholeGenomeGermlineSingleSample.wgs_coverage_interval_list": "gs://gcp-public-data--broad-references/hg38/v0/wgs_coverage_regions.hg38.interval_list",
+  "WholeGenomeGermlineMultipleSamples.to_cram": true,
+  "WholeGenomeGermlineMultipleSamples.check_contamination": true,
+  "WholeGenomeGermlineMultipleSamples.check_fingerprints": false,
+  "WholeGenomeGermlineMultipleSamples.validate_gvcf": false,
+  "WholeGenomeGermlineMultipleSamples.wgs_coverage_interval_list": "gs://gcp-public-data--broad-references/hg38/v0/wgs_coverage_regions.hg38.interval_list",
 
-  "WholeGenomeGermlineSingleSample.papi_settings": {
+  "WholeGenomeGermlineMultipleSamples.papi_settings": {
     "preemptible_tries": 3,
     "agg_preemptible_tries": 3
   }
