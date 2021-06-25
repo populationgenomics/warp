@@ -1,11 +1,5 @@
 {
-  "WholeGenomeGermlineSingleSample.inp": {
-    "sample_name": "HGDP01357-chr20",
-    "base_file_name": "HGDP01357-chr20",
-    "bam_or_cram_or_fastq1": "gs://cpg-fewgenomes-test/hgdp_crams/v1/HGDP01357.alt_bwamem_GRCh38DH.20181023.Basque.cram",
-    "bai_or_crai_or_fastq2": "gs://cpg-fewgenomes-test/hgdp_crams/v1/HGDP01357.alt_bwamem_GRCh38DH.20181023.Basque.cram.crai",
-    "final_gvcf_base_name": "HGDP01357-chr20"
-  },
+  "WholeGenomeGermlineSingleSample.sample_map": "gs://cpg-fewgenomes-test/hgdp_crams/v1/sample_map.tsv",
 
   "WholeGenomeGermlineSingleSample.subset_region": "chr20",
 

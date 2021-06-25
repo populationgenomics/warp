@@ -22,7 +22,7 @@ version 1.0
 ## page at https://hub.docker.com/r/broadinstitute/genomes-in-the-cloud/ for detailed
 ## licensing information pertaining to the included programs.
 
-import "../../../../../../tasks/broad/UnmappedBamToAlignedBam.wdl" as ToBam
+import "../../../../../../tasks/broad/BamOrCramOrFastqToAlignedBamOrCram.wdl" as ToBam
 import "../../../../../../tasks/broad/AggregatedBamQC.wdl" as AggregatedQC
 import "../../../../../../tasks/broad/Qc.wdl" as QC
 import "../../../../../../tasks/broad/BamToCram.wdl" as ToCram
@@ -35,12 +35,13 @@ workflow WholeGenomeGermlineSingleSample {
   String pipeline_version = "2.3.3"
 
   input {
-    SampleAndUnmappedBams sample_and_unmapped_bams
+    Input inp
     DNASeqSingleSampleReferences references
     VariantCallingScatterSettings scatter_settings
     PapiSettings papi_settings
     
-    Boolean to_cram = false
+    Boolean realign = true
+    Boolean to_cram = true
     Boolean check_contamination = true
     Boolean check_fingerprints = false
 
@@ -49,45 +50,51 @@ workflow WholeGenomeGermlineSingleSample {
 
     File wgs_coverage_interval_list
 
-    Boolean provide_bam_output = false
+    Boolean output_alignment_file = true
     Boolean use_gatk3_haplotype_caller = false
     Boolean validate_gvcf = true
+
+    String? subset_region
   }
 
   # Not overridable:
   Int read_length = 250
   Float lod_threshold = -20.0
   String cross_check_fingerprints_by = "READGROUP"
+  String final_gvcf_base_name = select_first([inp.final_gvcf_base_name, inp.base_file_name])
 
-  String final_gvcf_base_name = select_first([sample_and_unmapped_bams.final_gvcf_base_name, sample_and_unmapped_bams.base_file_name])
-
-  call ToBam.UnmappedBamToAlignedBam {
-    input:
-      sample_and_unmapped_bams    = sample_and_unmapped_bams,
-      references                  = references,
-      papi_settings               = papi_settings,
-
-      check_contamination = check_contamination,
-      check_fingerprints  = check_fingerprints,
-
-      contamination_sites_ud  = references.contamination_sites_ud,
-      contamination_sites_bed = references.contamination_sites_bed,
-      contamination_sites_mu  = references.contamination_sites_mu,
-
-      cross_check_fingerprints_by = cross_check_fingerprints_by,
-      haplotype_database_file     = references.haplotype_database_file,
-      lod_threshold               = lod_threshold,
+  if (realign) {
+    call ToBam.BamOrCramOrFastqToAlignedBamOrCram {
+      input:
+        inp = inp,
+        references = references,
+        papi_settings = papi_settings,
+  
+        check_contamination = check_contamination,
+        check_fingerprints  = check_fingerprints,
+  
+        contamination_sites_ud  = references.contamination_sites_ud,
+        contamination_sites_bed = references.contamination_sites_bed,
+        contamination_sites_mu  = references.contamination_sites_mu,
+  
+        cross_check_fingerprints_by = cross_check_fingerprints_by,
+        haplotype_database_file     = references.haplotype_database_file,
+        lod_threshold               = lod_threshold,
+      
+        to_cram = to_cram,
+        subset_region = subset_region
+    }
   }
 
-  File mapped_bam = UnmappedBamToAlignedBam.output_bam
-  File mapped_index = UnmappedBamToAlignedBam.output_bam_index
+  File mapped_file = select_first([BamOrCramOrFastqToAlignedBamOrCram.output_file, inp.bam_or_cram_or_fastq1])
+  File mapped_indx = select_first([BamOrCramOrFastqToAlignedBamOrCram.output_indx, inp.bai_or_crai_or_fastq2])
 
   call AggregatedQC.AggregatedBamQC {
     input:
-      base_recalibrated_bam = mapped_bam,
-      base_recalibrated_bam_index = mapped_index,
-      base_name = sample_and_unmapped_bams.base_file_name,
-      sample_name = sample_and_unmapped_bams.sample_name,
+      base_recalibrated_bam = mapped_file,
+      base_recalibrated_bam_index = mapped_indx,
+      base_name = inp.base_file_name,
+      sample_name = inp.sample_name,
       haplotype_database_file = references.haplotype_database_file,
       references = references,
       fingerprint_genotypes_file = fingerprint_genotypes_file,
@@ -95,26 +102,12 @@ workflow WholeGenomeGermlineSingleSample {
       papi_settings = papi_settings
   }
 
-  if (to_cram) {
-    call ToCram.BamToCram as BamToCram {
-      input:
-        input_bam = mapped_bam,
-        ref_fasta = references.reference_fasta.ref_fasta,
-        ref_fasta_index = references.reference_fasta.ref_fasta_index,
-        ref_dict = references.reference_fasta.ref_dict,
-        duplication_metrics = UnmappedBamToAlignedBam.duplicate_metrics,
-        chimerism_metrics = AggregatedBamQC.agg_alignment_summary_metrics,
-        base_file_name = sample_and_unmapped_bams.base_file_name,
-        agg_preemptible_tries = papi_settings.agg_preemptible_tries
-    }
-  }
-
   # QC the sample WGS metrics (stringent thresholds)
   call QC.CollectWgsMetrics as CollectWgsMetrics {
     input:
-      input_bam = mapped_bam,
-      input_bam_index = mapped_index,
-      metrics_filename = sample_and_unmapped_bams.base_file_name + ".wgs_metrics",
+      input_bam = mapped_file,
+      input_bam_index = mapped_indx,
+      metrics_filename = inp.base_file_name + ".wgs_metrics",
       ref_fasta = references.reference_fasta.ref_fasta,
       ref_fasta_index = references.reference_fasta.ref_fasta_index,
       wgs_coverage_interval_list = wgs_coverage_interval_list,
@@ -125,9 +118,9 @@ workflow WholeGenomeGermlineSingleSample {
   # QC the sample raw WGS metrics (common thresholds)
   call QC.CollectRawWgsMetrics as CollectRawWgsMetrics {
     input:
-      input_bam = mapped_bam,
-      input_bam_index = mapped_index,
-      metrics_filename = sample_and_unmapped_bams.base_file_name + ".raw_wgs_metrics",
+      input_bam = mapped_file,
+      input_bam_index = mapped_indx,
+      metrics_filename = inp.base_file_name + ".raw_wgs_metrics",
       ref_fasta = references.reference_fasta.ref_fasta,
       ref_fasta_index = references.reference_fasta.ref_fasta_index,
       wgs_coverage_interval_list = wgs_coverage_interval_list,
@@ -141,32 +134,32 @@ workflow WholeGenomeGermlineSingleSample {
       evaluation_interval_list = references.evaluation_interval_list,
       haplotype_scatter_count = scatter_settings.haplotype_scatter_count,
       break_bands_at_multiples_of = scatter_settings.break_bands_at_multiples_of,
-      contamination = UnmappedBamToAlignedBam.contamination,
-      input_bam = mapped_bam,
-      input_bam_index = mapped_index,
+      contamination = BamOrCramOrFastqToAlignedBamOrCram.contamination,
+      input_bam = mapped_file,
+      input_bam_index = mapped_indx,
       ref_fasta = references.reference_fasta.ref_fasta,
       ref_fasta_index = references.reference_fasta.ref_fasta_index,
       ref_dict = references.reference_fasta.ref_dict,
       dbsnp_vcf = references.dbsnp_vcf,
       dbsnp_vcf_index = references.dbsnp_vcf_index,
-      base_file_name = sample_and_unmapped_bams.base_file_name,
+      base_file_name = inp.base_file_name,
       final_vcf_base_name = final_gvcf_base_name,
       agg_preemptible_tries = papi_settings.agg_preemptible_tries,
       use_gatk3_haplotype_caller = use_gatk3_haplotype_caller,
       validate_gvcf = validate_gvcf
   }
 
-  if (provide_bam_output) {
-    File provided_output_bam = mapped_bam
-    File provided_output_bam_index = mapped_index
+  if (output_alignment_file) {
+    File alignment_file_to_output = mapped_file
+    File alignment_indx_to_output = mapped_indx
   }
 
   # Outputs that will be retained when execution is complete
   output {
-    File? cross_check_fingerprints_metrics = UnmappedBamToAlignedBam.cross_check_fingerprints_metrics
+    File? cross_check_fingerprints_metrics = BamOrCramOrFastqToAlignedBamOrCram.cross_check_fingerprints_metrics
 
-    File? selfSM = UnmappedBamToAlignedBam.selfSM
-    Float? contamination = UnmappedBamToAlignedBam.contamination
+    File? selfSM = BamOrCramOrFastqToAlignedBamOrCram.selfSM
+    Float? contamination = BamOrCramOrFastqToAlignedBamOrCram.contamination
 
     File calculate_read_group_checksum_md5 = AggregatedBamQC.calculate_read_group_checksum_md5
 
@@ -190,19 +183,13 @@ workflow WholeGenomeGermlineSingleSample {
     File wgs_metrics = CollectWgsMetrics.metrics
     File raw_wgs_metrics = CollectRawWgsMetrics.metrics
 
-    File? duplicate_metrics = UnmappedBamToAlignedBam.duplicate_metrics
+    File? duplicate_metrics = BamOrCramOrFastqToAlignedBamOrCram.duplicate_metrics
 
     File? gvcf_summary_metrics = BamToGvcf.vcf_summary_metrics
     File? gvcf_detail_metrics = BamToGvcf.vcf_detail_metrics
 
-    File? output_bam = provided_output_bam
-    File? output_bam_index = provided_output_bam_index
-
-    File? output_cram = BamToCram.output_cram
-    File? output_cram_index = BamToCram.output_cram_index
-    File? output_cram_md5 = BamToCram.output_cram_md5
-
-    File? validate_cram_file_report = BamToCram.validate_cram_file_report
+    File? alignment_file = alignment_file_to_output
+    File? alignment_indx = alignment_indx_to_output
 
     File output_vcf = BamToGvcf.output_vcf
     File output_vcf_index = BamToGvcf.output_vcf_index

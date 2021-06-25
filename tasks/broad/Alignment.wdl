@@ -17,107 +17,157 @@ version 1.0
 
 import "../../structs/dna_seq/DNASeqStructs.wdl"
 
-# Read unmapped BAM, convert on-the-fly to FASTQ and stream to BWA MEM for alignment, then stream to MergeBamAlignment
-task SamToFastqAndBwaMemAndMba {
+task BwaFromFastq {
   input {
-    File input_bam
-    String bwa_commandline
+    File fastq1
+    File fastq2
+    String sample_name
     String output_bam_basename
+    String duplicate_metrics_fname
 
     # reference_fasta.ref_alt is the .alt file from bwa-kit
     # (https://github.com/lh3/bwa/tree/master/bwakit),
     # listing the reference contigs that are "alternative".
     ReferenceFasta reference_fasta
 
-    Int compression_level
     Int preemptible_tries
-    Boolean hard_clip_reads = false
+    Boolean to_cram = false
   }
-
-  Float unmapped_bam_size = size(input_bam, "GiB")
-  Float ref_size = size(reference_fasta.ref_fasta, "GiB") + size(reference_fasta.ref_fasta_index, "GiB") + size(reference_fasta.ref_dict, "GiB")
-  Float bwa_ref_size = ref_size + size(reference_fasta.ref_alt, "GiB") + size(reference_fasta.ref_amb, "GiB") + size(reference_fasta.ref_ann, "GiB") + size(reference_fasta.ref_bwt, "GiB") + size(reference_fasta.ref_pac, "GiB") + size(reference_fasta.ref_sa, "GiB")
-  # Sometimes the output is larger than the input, or a task can spill to disk.
-  # In these cases we need to account for the input (1) and the output (1.5) or the input(1), the output(1), and spillage (.5).
-  Float disk_multiplier = 2.5
-  Int disk_size = ceil(unmapped_bam_size + bwa_ref_size + (disk_multiplier * unmapped_bam_size) + 20)
   
+  String output_format = if to_cram then "cram" else "bam"
+  
+  Int bwa_cpu = 25
+  Int bamsormadup_cpu = 6
+  Int total_cpu = bwa_cpu + bamsormadup_cpu
+
+  String rg_line = "@RG\\tID:~{sample_name}\\tSM:~{sample_name}"
+  
+  String output_file = if to_cram then "~{output_bam_basename}.cram" else "~{output_bam_basename}.bam"
+  String output_indx = if to_cram then "~{output_bam_basename}.crai" else "~{output_bam_basename}.bai"
+  
+  # BWA command options:
+  # -K     process INT input bases in each batch regardless of nThreads (for reproducibility)
+  # -v3    minimum score to output [30]
+  # -t16   threads
+  # -Y     use soft clipping for supplementary alignments
+  # -R     read group header line such as '@RG\tID:foo\tSM:bar'
+  # -M     mark shorter split hits as secondary
   command <<<
-
-
-    # This is done before "set -o pipefail" because "bwa" will have a rc=1 and we don't want to allow rc=1 to succeed
-    # because the sed may also fail with that error and that is something we actually want to fail on.
-    BWA_VERSION=$(/usr/gitc/bwa 2>&1 | \
-    grep -e '^Version' | \
-    sed 's/Version: //')
-
     set -o pipefail
-    set -e
+    set -ex
 
-    if [ -z ${BWA_VERSION} ]; then
-        exit 1;
-    fi
+    (while true; do df -h; pwd; du -sh *; free -m; sleep 300; done) &
+    
+    bwa mem -K 100000000 -v3 -t~{bwa_cpu} -Y -R '~{rg_line}' \
+      ~{reference_fasta.ref_fasta} ~{fastq1} ~{fastq2} \
+      2> >(tee ~{output_bam_basename}.bwa.stderr.log >&2) | \
+    bamsormadup inputformat=sam threads=~{bamsormadup_cpu} SO=coordinate \
+      M=~{duplicate_metrics_fname} \
+      outputformat=sam | \
+    samtools view -T ~{reference_fasta.ref_fasta} \
+      -O ~{output_format} \
+      -o ~{output_file}
+    
+    samtools index -@~{total_cpu} ~{output_file} ~{output_indx}
 
-    # set the bash variable needed for the command-line
-    bash_ref_fasta=~{reference_fasta.ref_fasta}
-    # if reference_fasta.ref_alt has data in it,
-    if [ -s ~{reference_fasta.ref_alt} ]; then
-      java -Xms1000m -Xmx1000m -jar /usr/gitc/picard.jar \
-        SamToFastq \
-        INPUT=~{input_bam} \
-        FASTQ=/dev/stdout \
-        INTERLEAVE=true \
-        NON_PF=true | \
-      /usr/gitc/~{bwa_commandline} /dev/stdin - 2> >(tee ~{output_bam_basename}.bwa.stderr.log >&2) | \
-      java -Dsamjdk.compression_level=~{compression_level} -Xms1000m -Xmx1000m -jar /usr/gitc/picard.jar \
-        MergeBamAlignment \
-        VALIDATION_STRINGENCY=SILENT \
-        EXPECTED_ORIENTATIONS=FR \
-        ATTRIBUTES_TO_RETAIN=X0 \
-        ATTRIBUTES_TO_REMOVE=NM \
-        ATTRIBUTES_TO_REMOVE=MD \
-        ALIGNED_BAM=/dev/stdin \
-        UNMAPPED_BAM=~{input_bam} \
-        OUTPUT=~{output_bam_basename}.bam \
-        REFERENCE_SEQUENCE=~{reference_fasta.ref_fasta} \
-        PAIRED_RUN=true \
-        SORT_ORDER="unsorted" \
-        IS_BISULFITE_SEQUENCE=false \
-        ALIGNED_READS_ONLY=false \
-        CLIP_ADAPTERS=false \
-        ~{true='CLIP_OVERLAPPING_READS=true' false="" hard_clip_reads} \
-        ~{true='CLIP_OVERLAPPING_READS_OPERATOR=H' false="" hard_clip_reads} \
-        MAX_RECORDS_IN_RAM=2000000 \
-        ADD_MATE_CIGAR=true \
-        MAX_INSERTIONS_OR_DELETIONS=-1 \
-        PRIMARY_ALIGNMENT_STRATEGY=MostDistant \
-        PROGRAM_RECORD_ID="bwamem" \
-        PROGRAM_GROUP_VERSION="${BWA_VERSION}" \
-        PROGRAM_GROUP_COMMAND_LINE="~{bwa_commandline}" \
-        PROGRAM_GROUP_NAME="bwamem" \
-        UNMAPPED_READ_STRATEGY=COPY_TO_TAG \
-        ALIGNER_PROPER_PAIR_FLAGS=true \
-        UNMAP_CONTAMINANT_READS=true \
-        ADD_PG_TAG_TO_READS=false
-
-      grep -m1 "read .* ALT contigs" ~{output_bam_basename}.bwa.stderr.log | \
-      grep -v "read 0 ALT contigs"
-
-    # else reference_fasta.ref_alt is empty or could not be found
-    else
-      exit 1;
-    fi
+    df -h; pwd; du -sh *
   >>>
+  
   runtime {
-    docker: "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.7-1603303710"
+    # docker: "australia-southeast1-docker.pkg.dev/fewgenomes/images/bazam:v2"
+    # cromwell doesn't work with artifact registry:
+    # java.lang.Exception: Registry australia-southeast1-docker.pkg.dev is not supported
+    docker: "gcr.io/fewgenomes/bazam:v2"
     preemptible: preemptible_tries
-    memory: "14 GiB"
-    cpu: "16"
-    disks: "local-disk " + disk_size + " HDD"
+    memory: "64 GiB"
+    cpu: total_cpu
+    disks: "local-disk " + 300 + " HDD"
   }
   output {
-    File output_bam = "~{output_bam_basename}.bam"
+    File output_file = output_file
+    File output_indx = output_indx
     File bwa_stderr_log = "~{output_bam_basename}.bwa.stderr.log"
+    File duplicate_metrics = "~{duplicate_metrics_fname}"
+  }
+}
+
+task BwaFromBamOrCram {
+  input {
+    File bam_or_cram
+    File bai_or_crai
+    String sample_name
+    String output_bam_basename
+    String duplicate_metrics_fname
+
+    # reference_fasta.ref_alt is the .alt file from bwa-kit
+    # (https://github.com/lh3/bwa/tree/master/bwakit),
+    # listing the reference contigs that are "alternative".
+    ReferenceFasta reference_fasta
+
+    Int preemptible_tries
+    Boolean to_cram = false
+    String? subset_region 
+  }
+  
+  String output_format = if to_cram then "cram" else "bam"
+  String bazam_regions = if defined(subset_region) then "--regions ~{subset_region} " else ""
+  
+  Int bwa_cpu = 20
+  Int bazam_cpu = 5
+  Int bamsormadup_cpu = 6
+  Int total_cpu = bwa_cpu + bazam_cpu + bamsormadup_cpu
+
+  String rg_line = "@RG\\tID:~{sample_name}\\tSM:~{sample_name}"
+  
+  String output_file = if to_cram then "~{output_bam_basename}.cram" else "~{output_bam_basename}.bam"
+  String output_indx = if to_cram then "~{output_bam_basename}.crai" else "~{output_bam_basename}.bai"
+  
+  # BWA command options:
+  # -K     process INT input bases in each batch regardless of nThreads (for reproducibility)
+  # -p     smart pairing (ignoring in2.fq)
+  # -v3    minimum score to output [30]
+  # -t16   threads
+  # -Y     use soft clipping for supplementary alignments
+  # -R     read group header line such as '@RG\tID:foo\tSM:bar'
+  # -M     mark shorter split hits as secondary
+  command <<<
+    set -o pipefail
+    set -ex
+
+    (while true; do df -h; pwd; du -sh *; free -m; sleep 300; done) &
+    
+    bazam -Xmx16g -Dsamjdk.reference_fasta=~{reference_fasta.ref_fasta} \
+      ~{bazam_regions} -n~{bazam_cpu} -bam ~{bam_or_cram} | \
+    bwa mem -K 100000000 -p -v3 -t~{bwa_cpu} -Y -R '~{rg_line}' \
+      ~{reference_fasta.ref_fasta} /dev/stdin - \
+      2> >(tee ~{output_bam_basename}.bwa.stderr.log >&2) | \
+    bamsormadup inputformat=sam threads=~{bamsormadup_cpu} SO=coordinate \
+      M=~{duplicate_metrics_fname} \
+      outputformat=sam | \
+    samtools view -T ~{reference_fasta.ref_fasta} \
+      -O ~{output_format} \
+      -o ~{output_file}
+    
+    samtools index -@~{total_cpu} ~{output_file} ~{output_indx}
+
+    df -h; pwd; du -sh *
+  >>>
+  
+  runtime {
+    # docker: "australia-southeast1-docker.pkg.dev/fewgenomes/images/bazam:v2"
+    # cromwell doesn't work with artifact registry:
+    # java.lang.Exception: Registry australia-southeast1-docker.pkg.dev is not supported
+    docker: "gcr.io/fewgenomes/bazam:v2"
+    preemptible: preemptible_tries
+    memory: "64 GiB"
+    cpu: total_cpu
+    disks: "local-disk " + 300 + " HDD"
+  }
+  output {
+    File output_file = output_file
+    File output_indx = output_indx
+    File bwa_stderr_log = "~{output_bam_basename}.bwa.stderr.log"
+    File duplicate_metrics = "~{duplicate_metrics_fname}"
   }
 }
 

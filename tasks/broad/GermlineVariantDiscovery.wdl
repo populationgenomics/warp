@@ -92,7 +92,7 @@ task HaplotypeCaller_GATK4_VCF {
     Boolean make_bamout
     Int preemptible_tries
     Int hc_scatter
-    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.1.4.0"
+    String gatk_docker = "us.gcr.io/broad-gatk/gatk:4.2.0.0"
   }
 
   String output_suffix = if make_gvcf then ".g.vcf.gz" else ".vcf.gz"
@@ -111,7 +111,7 @@ task HaplotypeCaller_GATK4_VCF {
 
   command <<<
     set -e
-    gatk --java-options "-Xms6000m -XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10" \
+    gatk --java-options "-Xms7000m -XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10" \
       HaplotypeCaller \
       -R ~{ref_fasta} \
       -I ~{input_bam} \
@@ -119,7 +119,7 @@ task HaplotypeCaller_GATK4_VCF {
       -O ~{output_file_name} \
       -contamination ~{default=0 contamination} \
       -G StandardAnnotation -G StandardHCAnnotation ~{true="-G AS_StandardAnnotation" false="" make_gvcf} \
-      -GQB 10 -GQB 20 -GQB 30 -GQB 40 -GQB 50 -GQB 60 -GQB 70 -GQB 80 -GQB 90 \
+      -GQB 20 \
       ~{true="-ERC GVCF" false="" make_gvcf} \
       ~{bamout_arg}
 
@@ -130,7 +130,7 @@ task HaplotypeCaller_GATK4_VCF {
   runtime {
     docker: gatk_docker
     preemptible: preemptible_tries
-    memory: "6.5 GiB"
+    memory: "8 GiB"
     cpu: "2"
     bootDiskSizeGb: 15
     disks: "local-disk " + disk_size + " HDD"
@@ -139,7 +139,7 @@ task HaplotypeCaller_GATK4_VCF {
   output {
     File output_vcf = "~{output_file_name}"
     File output_vcf_index = "~{output_file_name}.tbi"
-    File bamout = "~{vcf_basename}.bamout.bam"
+    File? bamout = "~{vcf_basename}.bamout.bam"
   }
 }
 

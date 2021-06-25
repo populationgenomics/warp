@@ -20,7 +20,7 @@ import "../../structs/dna_seq/DNASeqStructs.wdl"
 
 # WORKFLOW DEFINITION
 workflow AggregatedBamQC {
-input {
+  input {
     File base_recalibrated_bam
     File base_recalibrated_bam_index
     String base_name
@@ -67,7 +67,10 @@ input {
         genotypes_index = fingerprint_genotypes_index,
         output_basename = base_name,
         sample = sample_name,
-        preemptible_tries = papi_settings.agg_preemptible_tries
+        preemptible_tries = papi_settings.agg_preemptible_tries,
+        ref_dict = references.reference_fasta.ref_dict,
+        ref_fasta = references.reference_fasta.ref_fasta,
+        ref_fasta_index = references.reference_fasta.ref_fasta_index
     }
   }
 
@@ -77,7 +80,10 @@ input {
       input_bam = base_recalibrated_bam,
       input_bam_index = base_recalibrated_bam_index,
       read_group_md5_filename = base_name + ".bam.read_group_md5",
-      preemptible_tries = papi_settings.agg_preemptible_tries
+      preemptible_tries = papi_settings.agg_preemptible_tries,
+      ref_dict = references.reference_fasta.ref_dict,
+      ref_fasta = references.reference_fasta.ref_fasta,
+      ref_fasta_index = references.reference_fasta.ref_fasta_index
   }
 
   output {

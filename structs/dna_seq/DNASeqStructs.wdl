@@ -1,17 +1,18 @@
 version 1.0
 
-struct SampleAndBam {
+struct Input {
   String base_file_name
   String? final_gvcf_base_name
-  File mapped_bam
-  File? mapped_index
+  File bam_or_cram_or_fastq1
+  File bai_or_crai_or_fastq2
   String sample_name
 }
 
-struct SampleAndFastqs {
+struct SampleAndUnmappedBam {
   String base_file_name
   String? final_gvcf_base_name
-  Array[Array[File]] fastqs
+  File unmapped_bam
+  File? unmapped_index
   String sample_name
 }
 
@@ -20,7 +21,6 @@ struct SampleAndUnmappedBams {
   String? final_gvcf_base_name
   Array[File] flowcell_unmapped_bams
   String sample_name
-  String unmapped_bam_suffix
 }
 
 struct ReferenceFasta {
